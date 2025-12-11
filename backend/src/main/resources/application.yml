@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/camping_db
     username: postgres
-    password: postgres
+    password: 5723
     driver-class-name: org.postgresql.Driver
 
   jpa:

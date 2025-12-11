@@ -7,8 +7,16 @@ public class Result<T> {
     private Integer code; // 1:成功, 0:失败
     private String msg;
     private T data;
+    public Result() {
+    }
 
-    // 省略静态构建方法 success(data), error(msg) 等
+    public Result(Integer code, String msg, T data) {
+        this.code = code;
+        this.msg = msg;
+        this.data = data;
+    }
+
+    // 静态构建方法
     public static <T> Result<T> success(T data) {
         return new Result<>(1, "success", data);
     }
