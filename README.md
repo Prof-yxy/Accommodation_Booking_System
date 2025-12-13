@@ -91,6 +91,14 @@ camping-system/
 
 前端访问URL：`localhost:5173`
 
+默认的两个登录账户：
+
+```
+username	password	  role
+ admin		 admin		 admin
+ user1		 user		 user
+```
+
 ## 三、TODO与建议
 
 ### TODO（按顺序）：

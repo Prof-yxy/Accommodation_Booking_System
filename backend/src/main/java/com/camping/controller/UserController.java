@@ -1,8 +1,10 @@
 package com.camping.controller;
 
 import com.camping.common.Result;
+import com.camping.common.StringConstants;
 import com.camping.dto.*;
 import com.camping.service.UserService;
+import com.camping.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -36,7 +38,7 @@ public class UserController {
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody UserLoginDTO dto) {
         try {
-            Map<String, Object> result = userService.login(dto);
+            Map<String, Object> result = userService.login(dto).toMap();
             return Result.success(result);
         } catch (Exception e) {
             return Result.error("登录失败: " + e.getMessage());
@@ -47,11 +49,13 @@ public class UserController {
      * 获取当前用户信息
      */
     @GetMapping("/info")
-    public Result<Map<String, Object>> getCurrentUser() {
+    public Result<Map<String, Object>> getCurrentUser(@RequestParam String token) {
         try {
-            // TODO: 从 Token 中获取 userId
-            Long userId = 1L; // 模拟
+            if (JwtUtil.isTokenExpired(token)) {
+                throw new Exception(StringConstants.USER_TOKEN_EXPIRED);
+            }
 
+            Long userId = JwtUtil.getUserIdFromToken(token);
             var user = userService.getUserById(userId);
 
             Map<String, Object> info = new java.util.HashMap<>();
@@ -60,6 +64,7 @@ public class UserController {
             info.put("phone", user.getPhone());
             info.put("role", user.getRole());
             info.put("createTime", user.getCreateTime());
+            info.put("updateTime", user.getUpdateTime());
 
             return Result.success(info);
         } catch (Exception e) {
@@ -71,8 +76,9 @@ public class UserController {
      * 用户登出
      */
     @PostMapping("/logout")
-    public Result<Void> logout() {
+    public Result<Void> logout(@RequestParam String token) {
         // TODO: 清除 Token
+        // 在前端删除Token即可
         return Result.success(null);
     }
 
@@ -80,9 +86,10 @@ public class UserController {
      * 更新用户信息
      */
     @PutMapping("/info")
-    public Result<Void> updateUserInfo(@RequestBody Map<String, Object> data) {
+    public Result<Void> updateUserInfo(@RequestBody UserInfoDTO userInfoDTO) {
         try {
-            // TODO: 实现用户信息更新
+            userService.updateUserInfo(userInfoDTO);
+
             return Result.success(null);
         } catch (Exception e) {
             return Result.error("更新用户信息失败: " + e.getMessage());
@@ -93,11 +100,16 @@ public class UserController {
      * 修改密码
      */
     @PostMapping("/password")
-    public Result<Void> changePassword(@RequestBody Map<String, String> data) {
+    public Result<Void> changePassword(@RequestBody Map<String, Object> data) {
+        /*
+        data: token->String
+              oldPassword->String
+              newPassword->String
+         */
         try {
-            Long userId = 1L; // 从 Token 获取
-            String oldPassword = data.get("oldPassword");
-            String newPassword = data.get("newPassword");
+            Long userId = JwtUtil.getUserIdFromToken((String) data.get("token")); // 从 Token 获取
+            String oldPassword = (String) data.get("oldPassword");
+            String newPassword = (String) data.get("newPassword");
 
             userService.changePassword(userId, oldPassword, newPassword);
             return Result.success(null);

@@ -1,8 +1,7 @@
 package com.camping.util;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
+import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * 密码和加密工具类
@@ -10,26 +9,12 @@ import java.util.UUID;
 public class PasswordUtil {
 
     /**
-     * 生成盐
-     */
-    public static String generateSalt() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
-
-    /**
      * 加密密码
      */
-    public static String encryptPassword(String password, String salt) {
+    public static String encryptPassword(String password) {
         try {
-            String combined = password + salt;
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] messageDigest = md.digest(combined.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : messageDigest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
+            return BCrypt.hashpw(password, BCrypt.gensalt());
+        } catch (Exception e) {
             throw new RuntimeException("密码加密失败", e);
         }
     }
@@ -37,8 +22,14 @@ public class PasswordUtil {
     /**
      * 验证密码
      */
-    public static boolean verifyPassword(String password, String salt, String encryptedPassword) {
-        String encrypted = encryptPassword(password, salt);
-        return encrypted.equals(encryptedPassword);
+    public static boolean verifyPassword(String password, String encryptedPassword) {
+        if (BCrypt.checkpw(password, encryptedPassword)) {
+            System.out.println("登录成功");
+            return true;
+        }
+        else {
+            System.out.println("密码错误");
+            return false;
+        }
     }
 }
