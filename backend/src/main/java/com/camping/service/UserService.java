@@ -1,5 +1,6 @@
 package com.camping.service;
 
+import com.camping.dto.UserInfoDTO;
 import com.camping.dto.UserLoginDTO;
 import com.camping.dto.UserRegisterDTO;
 import com.camping.entity.User;
@@ -18,7 +19,7 @@ public interface UserService {
     /**
      * 用户登录
      */
-    Map<String, Object> login(UserLoginDTO dto) throws Exception;
+    UserInfoDTO login(UserLoginDTO dto) throws Exception;
 
     /**
      * 获取用户信息
@@ -29,6 +30,7 @@ public interface UserService {
      * 更新用户信息
      */
     void updateUserInfo(User user) throws Exception;
+    void updateUserInfo(UserInfoDTO userInfoDTO) throws Exception;
 
     /**
      * 修改密码
