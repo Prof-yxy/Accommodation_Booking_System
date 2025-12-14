@@ -10,12 +10,17 @@ ON CONFLICT (username) DO NOTHING;
 
 -- 2. 插入营地类型
 INSERT INTO site_types (type_name, base_price, max_guests, description, image_url, status) VALUES
-('标准帐篷营地', 100.00, 4, '适合家庭露营，包含基础设施', 'https://example.com/standard-tent.jpg', 1),
-('豪华帐篷营地', 200.00, 6, '更加舒适的露营体验，配备齐全', 'https://example.com/luxury-tent.jpg', 1),
-('RV营地', 150.00, 8, '专为房车停泊设计，水电齐全', 'https://example.com/rv-site.jpg', 1),
-('小木屋', 250.00, 4, '舒适的小木屋住宿，有独立浴室', 'https://example.com/cabin.jpg', 1),
-('帐篷村落', 80.00, 3, '经济型选择，适合背包客', 'https://example.com/budget-tent.jpg', 1)
-ON CONFLICT (type_name) DO NOTHING;
+('湖景標准營位', 120.00, 4, '臨湖草地，含電桩與野餐桌', 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80', 1),
+('森林豪華營位', 220.00, 6, '寬闊樹蔭，含私密遮陽與吊床', 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80', 1),
+('星空A字小屋', 320.00, 4, '硬頂小屋，配備空調與獨立衛浴', 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80', 1),
+('全套接駁房車位', 180.00, 8, '車位自帶上下水與30A電源', 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80', 1),
+('輕奢鈴鐺帳', 260.00, 4, '木平台 + 大空間棉布帳，含氛圍燈', 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80', 1)
+ON CONFLICT (type_name) DO UPDATE SET
+    base_price = EXCLUDED.base_price,
+    max_guests = EXCLUDED.max_guests,
+    description = EXCLUDED.description,
+    image_url = EXCLUDED.image_url,
+    status = EXCLUDED.status;
 
 -- 3. 插入营地
 INSERT INTO sites (type_id, site_no, status, create_time, update_time) 
@@ -28,19 +33,20 @@ WHERE NOT EXISTS (
 
 -- 4. 插入设备
 INSERT INTO equipments (equip_name, unit_price, total_stock, category, description, status) VALUES
-('帐篷', 50.00, 100, '住宿', '标准4人帐篷', 1),
-('睡袋', 20.00, 150, '睡眠', '三季节睡袋', 1),
-('登山包', 30.00, 80, '行李', '60L登山包', 1),
-('煤气炉', 25.00, 100, '烹饪', '便携式煤气炉', 1),
-('餐具套装', 15.00, 120, '烹饪', '6人用餐具组', 1),
-('手电筒', 8.00, 200, '照明', 'LED手电筒', 1),
-('防潮垫', 12.00, 100, '睡眠', '自充气防潮垫', 1),
-('烧烤架', 40.00, 50, '烹饪', '便携式烧烤架', 1),
-('冷却盒', 35.00, 80, '存储', '50L冷却盒', 1),
-('急救包', 18.00, 100, '安全', '户外紧急急救包', 1),
-('地垫', 5.00, 300, '住宿', '帐篷地垫', 1),
-('生火套件', 22.00, 100, '烹饪', '生火工具组', 1)
-ON CONFLICT (equip_name) DO NOTHING;
+('羽絨睡袋', 28.00, 120, '睡眠', '舒適溫標5C，可壓縮', 1),
+('自充氣防潮墊', 16.00, 160, '睡眠', '5cm 厚度，R值 3.5', 1),
+('鈦合金炊煮套裝', 45.00, 90, '烹飪', '含鍋碗與酒精爐架', 1),
+('雙口瓦斯爐', 55.00, 70, '烹飪', '含兩罐230g氣罐', 1),
+('可折疊桌椅組', 32.00, 140, '營地', '四人桌 + 四折疊椅', 1),
+('LED氛圍燈串', 12.00, 180, '照明', 'USB 供電，10m 長', 1),
+('便攜保溫冰箱', 48.00, 80, '存儲', '42L，附車載電源線', 1),
+('戶外咖啡組', 26.00, 110, '烹飪', '手沖壺 + 濾杯 + 豆', 1)
+ON CONFLICT (equip_name) DO UPDATE SET
+    unit_price = EXCLUDED.unit_price,
+    total_stock = EXCLUDED.total_stock,
+    category = EXCLUDED.category,
+    description = EXCLUDED.description,
+    status = EXCLUDED.status;
 
 -- 5. 插入每日价格（未来60天的动态价格）
 INSERT INTO daily_prices (type_id, specific_date, price, remark, create_time)
