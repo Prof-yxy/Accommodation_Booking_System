@@ -279,6 +279,24 @@ public class BookingServiceImpl implements BookingService {
         // 触发器会自动释放库存
     }
 
+    /**
+     * 获取订单的装备列表
+     */
+    @Override
+    public List<Object> getBookingEquipments(Long bookingId) throws Exception {
+        if (bookingId == null) {
+            throw new Exception("订单ID不能为空");
+        }
+
+        // TODO: 查询订单关联的装备
+        // List<BookingEquip> bookingEquips =
+        // bookingEquipMapper.selectByBookingId(bookingId);
+        // 对每个 BookingEquip，关联查询 Equipment 表获取装备详情
+        // 返回: [{ equipId, equipName, unitPrice, quantity, subtotal }]
+
+        return new ArrayList<>();
+    }
+
     // ==================== 辅助方法 ====================
 
     /**

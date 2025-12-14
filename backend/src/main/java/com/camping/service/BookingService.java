@@ -41,4 +41,9 @@ public interface BookingService {
      * 取消订单
      */
     void cancelBooking(Long bookingId) throws Exception;
+
+    /**
+     * 获取订单的装备列表
+     */
+    List<Object> getBookingEquipments(Long bookingId) throws Exception;
 }

@@ -97,4 +97,17 @@ public class BookingController {
             return Result.error("取消订单失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 获取订单的装备列表
+     */
+    @GetMapping("/{bookingId}/equipments")
+    public Result<List<Object>> getBookingEquipments(@PathVariable Long bookingId) {
+        try {
+            List<Object> equipments = bookingService.getBookingEquipments(bookingId);
+            return Result.success(equipments);
+        } catch (Exception e) {
+            return Result.error("获取订单装备失败: " + e.getMessage());
+        }
+    }
 }
