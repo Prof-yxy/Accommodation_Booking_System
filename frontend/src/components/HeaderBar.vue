@@ -4,6 +4,7 @@
     <nav class="links">
       <router-link to="/site-list">房型</router-link>
       <router-link to="/booking-confirm">预订</router-link>
+      <router-link to="/my-bookings">我的预订</router-link>
       <router-link to="/admin">管理</router-link>
     </nav>
   </header>

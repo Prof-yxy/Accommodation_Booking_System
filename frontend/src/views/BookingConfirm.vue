@@ -88,12 +88,27 @@ async function onCreate() {
       checkIn: form.value.checkIn,
       checkOut: form.value.checkOut,
       equipments,
-      userId: 1, // 演示用固定 userId
+      userId: parseInt(localStorage.getItem("userId") || "1"), // 从 localStorage 获取用户 ID
       guestName: form.value.guestName,
       guestPhone: form.value.guestPhone,
     };
     const res: any = await bookingApi.create(payload);
-    result.value = res && res.data ? res.data : res;
+
+    if (res && res.data && res.data.bookingId) {
+      // 课程设计演示：创建订单后直接视为完成，跳过支付流程
+      result.value = {
+        success: true,
+        message: "预订成功！",
+        ...res.data,
+      };
+
+      // 可选：自动跳转到订单详情页
+      // setTimeout(() => {
+      //   window.location.href = `/#/booking/${res.data.bookingId}`;
+      // }, 1500);
+    } else {
+      result.value = res && res.data ? res.data : res;
+    }
   } catch (e: any) {
     result.value = { error: e?.message || String(e) };
   }
