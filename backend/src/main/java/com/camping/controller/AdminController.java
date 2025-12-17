@@ -225,4 +225,88 @@ public class AdminController {
             return Result.error("获取用户行为记录失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 新增房型
+     */
+    @PostMapping("/type")
+    public Result<Object> createSiteType(@RequestBody Map<String, Object> typeData) {
+        try {
+            // TODO: 新增房型，typeData 包含 typeName, basePrice, maxGuests, description, imageUrl
+            // 等
+            // 返回新建房型信息
+            return Result.success(new HashMap<>());
+        } catch (Exception e) {
+            return Result.error("新增房型失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改房型
+     */
+    @PutMapping("/type/{typeId}")
+    public Result<Void> updateSiteType(@PathVariable Long typeId, @RequestBody Map<String, Object> typeData) {
+        try {
+            // TODO: 修改房型信息，typeData 可包含 typeName, basePrice, maxGuests, description,
+            // imageUrl 等
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("修改房型失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除房型
+     */
+    @DeleteMapping("/type/{typeId}")
+    public Result<Void> deleteSiteType(@PathVariable Long typeId) {
+        try {
+            // TODO: 删除房型及相关数据
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("删除房型失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 新增装备
+     */
+    @PostMapping("/equip")
+    public Result<Object> createEquipment(@RequestBody Map<String, Object> equipData) {
+        try {
+            // TODO: 新增装备，equipData 包含 equipName, unitPrice, totalStock, description,
+            // category 等
+            // 返回新建装备信息
+            return Result.success(new HashMap<>());
+        } catch (Exception e) {
+            return Result.error("新增装备失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改装备
+     */
+    @PutMapping("/equip/{equipId}")
+    public Result<Void> updateEquipment(@PathVariable Long equipId, @RequestBody Map<String, Object> equipData) {
+        try {
+            // TODO: 修改装备信息，equipData 可包含 equipName, unitPrice, totalStock, description,
+            // category 等
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("修改装备失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除装备
+     */
+    @DeleteMapping("/equip/{equipId}")
+    public Result<Void> deleteEquipment(@PathVariable Long equipId) {
+        try {
+            // TODO: 删除装备及相关数据
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("删除装备失败: " + e.getMessage());
+        }
+    }
 }

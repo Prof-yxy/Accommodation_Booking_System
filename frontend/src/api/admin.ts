@@ -61,6 +61,26 @@ export interface TypeStats {
   occupancyRate: number
   revenue: number
 }
+ 
+// 房型信息（用于增删改）
+export interface SiteTypeEdit {
+  typeId?: number // 新增时可不传
+  typeName: string
+  basePrice: number
+  maxGuests: number
+  description?: string
+  imageUrl?: string
+}
+
+// 装备信息（用于增删改）
+export interface EquipmentEdit {
+  equipId?: number // 新增时可不传
+  equipName: string
+  unitPrice: number
+  totalStock: number
+  description?: string
+  category?: string
+}
 
 // ======================== API 方法 ========================
 
@@ -73,6 +93,48 @@ export const adminApi = {
    */
   setDailyPrice: (data: PriceSetParams) => {
     return request.post('/admin/price/set', data)
+  },
+
+  /**
+   * 新增房型
+   */
+  createSiteType: (data: SiteTypeEdit) => {
+    return request.post('/admin/type', data)
+  },
+
+  /**
+   * 修改房型
+   */
+  updateSiteType: (typeId: number, data: Partial<SiteTypeEdit>) => {
+    return request.put(`/admin/type/${typeId}`, data)
+  },
+
+  /**
+   * 删除房型
+   */
+  deleteSiteType: (typeId: number) => {
+    return request.delete(`/admin/type/${typeId}`)
+  },
+
+  /**
+   * 新增装备
+   */
+  createEquipment: (data: EquipmentEdit) => {
+    return request.post('/admin/equip', data)
+  },
+
+  /**
+   * 修改装备
+   */
+  updateEquipment: (equipId: number, data: Partial<EquipmentEdit>) => {
+    return request.put(`/admin/equip/${equipId}`, data)
+  },
+
+  /**
+   * 删除装备
+   */
+  deleteEquipment: (equipId: number) => {
+    return request.delete(`/admin/equip/${equipId}`)
   },
 
   /**
