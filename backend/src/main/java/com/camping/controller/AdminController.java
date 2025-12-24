@@ -2,311 +2,747 @@ package com.camping.controller;
 
 import com.camping.common.Result;
 import com.camping.dto.PriceSetDTO;
+import com.camping.entity.*;
+import com.camping.mapper.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * 管理员模块控制器
+ * Admin Module Controller
  */
 @RestController
 @RequestMapping("/admin")
 public class AdminController {
 
+    @Autowired
+    private DailyPriceMapper dailyPriceMapper;
+
+    @Autowired
+    private SiteTypeMapper siteTypeMapper;
+
+    @Autowired
+    private SiteMapper siteMapper;
+
+    @Autowired
+    private EquipmentMapper equipmentMapper;
+
+    @Autowired
+    private BookingMapper bookingMapper;
+
+    @Autowired
+    private OperationLogMapper operationLogMapper;
+
     /**
-     * 设置日价格
+     * Set daily price for multiple dates
      */
     @PostMapping("/price/set")
     public Result<Void> setDailyPrice(@RequestBody PriceSetDTO dto) {
         try {
-            // TODO: 将价格写入 DailyPriceTable
+            List<String> dates = dto.getDates();
+            if (dates == null || dates.isEmpty()) {
+                return Result.error("No dates provided");
+            }
+            for (String dateStr : dates) {
+                DailyPrice existing = dailyPriceMapper.selectByTypeAndDate(dto.getTypeId(), dateStr);
+                if (existing != null) {
+                    existing.setPrice(dto.getPrice());
+                    dailyPriceMapper.update(existing);
+                } else {
+                    DailyPrice newPrice = new DailyPrice();
+                    newPrice.setTypeId(dto.getTypeId());
+                    newPrice.setSpecificDate(dateStr);
+                    newPrice.setPrice(dto.getPrice());
+                    dailyPriceMapper.insert(newPrice);
+                }
+            }
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("设置价格失败: " + e.getMessage());
+            return Result.error("Failed to set price: " + e.getMessage());
         }
     }
 
     /**
-     * 批量设置日价格
+     * Batch set daily prices for date range
      */
     @PostMapping("/price/batch")
     public Result<Void> setDailyPricesBatch(@RequestBody Map<String, Object> data) {
         try {
-            // TODO: 批量设置价格
+            Long typeId = ((Number) data.get("typeId")).longValue();
+            String startDate = (String) data.get("startDate");
+            String endDate = (String) data.get("endDate");
+            BigDecimal price = new BigDecimal(data.get("price").toString());
+
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                String dateStr = date.format(DateTimeFormatter.ISO_DATE);
+                DailyPrice existing = dailyPriceMapper.selectByTypeAndDate(typeId, dateStr);
+                if (existing != null) {
+                    existing.setPrice(price);
+                    dailyPriceMapper.update(existing);
+                } else {
+                    DailyPrice newPrice = new DailyPrice();
+                    newPrice.setTypeId(typeId);
+                    newPrice.setSpecificDate(dateStr);
+                    newPrice.setPrice(price);
+                    dailyPriceMapper.insert(newPrice);
+                }
+            }
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("批量设置价格失败: " + e.getMessage());
+            return Result.error("Failed to batch set prices: " + e.getMessage());
         }
     }
 
     /**
-     * 获取日收入报表
-     * 查询 View_Daily_Revenue 视图
+     * Get daily revenue report
      */
     @GetMapping("/report/daily")
-    public Result<Object> getDailyReport(@RequestParam String start,
-            @RequestParam String end) {
+    public Result<Object> getDailyReport(@RequestParam String startDate, @RequestParam String endDate) {
         try {
-            // TODO: 查询 View_Daily_Revenue
-            // SELECT * FROM View_Daily_Revenue WHERE date BETWEEN ? AND ?
-            Map<String, Object> report = new HashMap<>();
-            report.put("startDate", start);
-            report.put("endDate", end);
-            report.put("totalRevenue", 10000);
-            report.put("dailyData", new ArrayList<>());
+            List<Booking> allBookings = bookingMapper.selectAll();
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
+            List<Object> report = new ArrayList<>();
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                String dateStr = date.format(DateTimeFormatter.ISO_DATE);
+                int bookingCount = 0;
+                BigDecimal revenue = BigDecimal.ZERO;
+
+                for (Booking booking : allBookings) {
+                    if (booking.getStatus() == 2) {
+                        LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
+                        LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
+                        if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
+                            bookingCount++;
+                            int nights = (int) (checkOut.toEpochDay() - checkIn.toEpochDay());
+                            if (nights > 0) {
+                                BigDecimal dailyAmount = booking.getTotalPrice().divide(BigDecimal.valueOf(nights), 2,
+                                        BigDecimal.ROUND_HALF_UP);
+                                revenue = revenue.add(dailyAmount);
+                            }
+                        }
+                    }
+                }
+
+                Map<String, Object> dayReport = new LinkedHashMap<>();
+                dayReport.put("date", dateStr);
+                dayReport.put("bookingCount", bookingCount);
+                dayReport.put("revenue", revenue);
+                report.add(dayReport);
+            }
             return Result.success(report);
         } catch (Exception e) {
-            return Result.error("获取日报表失败: " + e.getMessage());
+            return Result.error("Failed to get daily report: " + e.getMessage());
         }
     }
 
     /**
-     * 获取房型收入报表
+     * Get report by site type
      */
     @GetMapping("/report/type")
-    public Result<List<Object>> getTypeReport(@RequestParam String start,
-            @RequestParam String end) {
+    public Result<Object> getTypeReport(@RequestParam String startDate, @RequestParam String endDate) {
         try {
-            // TODO: 按房型统计收入
-            return Result.success(new ArrayList<>());
+            List<SiteType> types = siteTypeMapper.selectAll();
+            List<Booking> allBookings = bookingMapper.selectAll();
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
+            List<Object> report = new ArrayList<>();
+            for (SiteType type : types) {
+                int bookingCount = 0;
+                BigDecimal revenue = BigDecimal.ZERO;
+
+                for (Booking booking : allBookings) {
+                    if (booking.getStatus() == 2 && type.getTypeId().equals(booking.getTypeId())) {
+                        LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
+                        if (!checkIn.isBefore(start) && !checkIn.isAfter(end)) {
+                            bookingCount++;
+                            revenue = revenue.add(booking.getTotalPrice());
+                        }
+                    }
+                }
+
+                Map<String, Object> typeReport = new LinkedHashMap<>();
+                typeReport.put("typeId", type.getTypeId());
+                typeReport.put("typeName", type.getTypeName());
+                typeReport.put("bookingCount", bookingCount);
+                typeReport.put("revenue", revenue);
+                report.add(typeReport);
+            }
+            return Result.success(report);
         } catch (Exception e) {
-            return Result.error("获取类型报表失败: " + e.getMessage());
+            return Result.error("Failed to get type report: " + e.getMessage());
         }
     }
 
     /**
-     * 获取预订统计信息
+     * Get booking statistics
      */
     @GetMapping("/stats/booking")
     public Result<Object> getBookingStats() {
         try {
-            // TODO: 统计订单数据
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("totalBookings", 100);
-            stats.put("paidBookings", 80);
-            stats.put("pendingPaymentBookings", 15);
-            stats.put("canceledBookings", 5);
-            stats.put("totalRevenue", 50000);
+            List<Booking> allBookings = bookingMapper.selectAll();
+
+            int totalBookings = allBookings.size();
+            int pendingBookings = 0;
+            int paidBookings = 0;
+            int cancelledBookings = 0;
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+
+            for (Booking booking : allBookings) {
+                if (booking.getStatus() == 1)
+                    pendingBookings++;
+                else if (booking.getStatus() == 2) {
+                    paidBookings++;
+                    totalRevenue = totalRevenue.add(booking.getTotalPrice());
+                } else if (booking.getStatus() == 3)
+                    cancelledBookings++;
+            }
+
+            Map<String, Object> stats = new LinkedHashMap<>();
+            stats.put("totalBookings", totalBookings);
+            stats.put("pendingBookings", pendingBookings);
+            stats.put("paidBookings", paidBookings);
+            stats.put("cancelledBookings", cancelledBookings);
+            stats.put("totalRevenue", totalRevenue);
             return Result.success(stats);
         } catch (Exception e) {
-            return Result.error("获取预订统计失败: " + e.getMessage());
+            return Result.error("Failed to get booking stats: " + e.getMessage());
         }
     }
 
     /**
-     * 获取房型统计信息
+     * Get site type statistics
      */
     @GetMapping("/stats/type")
-    public Result<List<Object>> getTypeStats() {
+    public Result<Object> getTypeStats() {
         try {
-            // TODO: 按房型统计占用率等信息
-            return Result.success(new ArrayList<>());
+            List<SiteType> types = siteTypeMapper.selectAll();
+            List<Object> stats = new ArrayList<>();
+
+            for (SiteType type : types) {
+                List<Site> sites = siteMapper.selectByTypeId(type.getTypeId());
+                int availableCount = 0;
+                int occupiedCount = 0;
+
+                for (Site site : sites) {
+                    if (site.getStatus() == 1)
+                        availableCount++;
+                    else
+                        occupiedCount++;
+                }
+
+                Map<String, Object> typeStat = new LinkedHashMap<>();
+                typeStat.put("typeId", type.getTypeId());
+                typeStat.put("typeName", type.getTypeName());
+                typeStat.put("totalSites", sites.size());
+                typeStat.put("availableSites", availableCount);
+                typeStat.put("occupiedSites", occupiedCount);
+                typeStat.put("basePrice", type.getBasePrice());
+                stats.add(typeStat);
+            }
+            return Result.success(stats);
         } catch (Exception e) {
-            return Result.error("获取房型统计失败: " + e.getMessage());
+            return Result.error("Failed to get type stats: " + e.getMessage());
         }
     }
 
     /**
-     * 获取操作日志
+     * Get operation logs with pagination
      */
     @GetMapping("/logs/operation")
     public Result<Object> getOperationLogs(@RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) String operation) {
         try {
-            // TODO: 查询操作日志表，支持分页和按操作类型过滤
-            Map<String, Object> result = new HashMap<>();
-            result.put("items", new ArrayList<>());
-            result.put("total", 0);
+            List<OperationLog> logs;
+            if (operation != null && !operation.isEmpty()) {
+                logs = operationLogMapper.selectByOperation(operation);
+            } else {
+                Map<String, Object> params = new HashMap<>();
+                logs = operationLogMapper.selectAll(params);
+            }
+
+            int total = logs.size();
+            int startIndex = (page - 1) * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, total);
+
+            List<Object> items = new ArrayList<>();
+            if (startIndex < total) {
+                for (int i = startIndex; i < endIndex; i++) {
+                    OperationLog log = logs.get(i);
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("logId", log.getLogId());
+                    item.put("operation", log.getOperation());
+                    item.put("operatorId", log.getOperatorId());
+                    item.put("operatorName", log.getOperatorName());
+                    item.put("description", log.getDescription());
+                    item.put("details", log.getDetails());
+                    item.put("logTime", log.getLogTime());
+                    items.add(item);
+                }
+            }
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("items", items);
+            result.put("total", total);
             result.put("page", page);
             result.put("pageSize", pageSize);
             return Result.success(result);
         } catch (Exception e) {
-            return Result.error("获取操作日志失败: " + e.getMessage());
+            return Result.error("Failed to get operation logs: " + e.getMessage());
         }
     }
 
     /**
-     * 获取所有营位信息
+     * Get all sites with optional type filter
      */
     @GetMapping("/sites")
     public Result<List<Object>> getAllSites(@RequestParam(required = false) Long typeId) {
         try {
-            // TODO: 查询营位信息，可选按房型过滤
-            return Result.success(new ArrayList<>());
+            List<Site> sites;
+            if (typeId != null) {
+                sites = siteMapper.selectByTypeId(typeId);
+            } else {
+                List<SiteType> types = siteTypeMapper.selectAll();
+                sites = new ArrayList<>();
+                for (SiteType type : types) {
+                    sites.addAll(siteMapper.selectByTypeId(type.getTypeId()));
+                }
+            }
+
+            List<Object> result = new ArrayList<>();
+            for (Site site : sites) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("siteId", site.getSiteId());
+                item.put("typeId", site.getTypeId());
+                item.put("siteNo", site.getSiteNo());
+                item.put("status", site.getStatus());
+
+                SiteType type = siteTypeMapper.selectById(site.getTypeId());
+                item.put("typeName", type != null ? type.getTypeName() : "Unknown");
+                result.add(item);
+            }
+            return Result.success(result);
         } catch (Exception e) {
-            return Result.error("获取营位列表失败: " + e.getMessage());
+            return Result.error("Failed to get sites: " + e.getMessage());
         }
     }
 
     /**
-     * 获取营位详情
+     * Get site detail
      */
     @GetMapping("/site/{siteId}")
     public Result<Object> getSiteDetail(@PathVariable Long siteId) {
         try {
-            // TODO: 查询单个营位详情
-            return Result.success(new HashMap<>());
+            Site site = siteMapper.selectById(siteId);
+            if (site == null) {
+                return Result.error("Site not found");
+            }
+
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("siteId", site.getSiteId());
+            detail.put("typeId", site.getTypeId());
+            detail.put("siteNo", site.getSiteNo());
+            detail.put("status", site.getStatus());
+
+            SiteType type = siteTypeMapper.selectById(site.getTypeId());
+            if (type != null) {
+                detail.put("typeName", type.getTypeName());
+                detail.put("basePrice", type.getBasePrice());
+                detail.put("maxGuests", type.getMaxGuests());
+            }
+            return Result.success(detail);
         } catch (Exception e) {
-            return Result.error("获取营位详情失败: " + e.getMessage());
+            return Result.error("Failed to get site detail: " + e.getMessage());
         }
     }
 
     /**
-     * 更新营位状态
+     * Update site status
      */
     @PutMapping("/site/{siteId}/status")
-    public Result<Void> updateSiteStatus(@PathVariable Long siteId,
-            @RequestBody Map<String, Integer> data) {
+    public Result<Void> updateSiteStatus(@PathVariable Long siteId, @RequestBody Map<String, Integer> data) {
         try {
-            // TODO: 更新营位状态 (1: 正常, 0: 维护中)
+            Site site = siteMapper.selectById(siteId);
+            if (site == null) {
+                return Result.error("Site not found");
+            }
+
+            Integer newStatus = data.get("status");
+            if (newStatus == null) {
+                return Result.error("Missing status parameter");
+            }
+
+            site.setStatus(newStatus);
+            siteMapper.update(site);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "UPDATE_SITE_STATUS",
+                    null,
+                    "SYSTEM",
+                    "Update site status to: " + (newStatus == 1 ? "Normal" : "Maintenance"),
+                    "siteId=" + siteId + ", newStatus=" + newStatus,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("更新营位状态失败: " + e.getMessage());
+            return Result.error("Failed to update site status: " + e.getMessage());
         }
     }
 
     /**
-     * 获取指定日期的占用情况
+     * Get occupancy by date
      */
     @GetMapping("/occupancy/date")
-    public Result<Object> getOccupancyByDate(@RequestParam String date,
-            @RequestParam(required = false) Long typeId) {
+    public Result<Object> getOccupancyByDate(@RequestParam String date, @RequestParam(required = false) Long typeId) {
         try {
-            // TODO: 查询指定日期的营位占用情况
-            Map<String, Object> occupancy = new HashMap<>();
+            List<SiteType> types;
+            if (typeId != null) {
+                SiteType type = siteTypeMapper.selectById(typeId);
+                types = type != null ? Collections.singletonList(type) : Collections.emptyList();
+            } else {
+                types = siteTypeMapper.selectAll();
+            }
+
+            int totalCount = 0;
+            int occupiedCount = 0;
+
+            for (SiteType type : types) {
+                List<Site> allSites = siteMapper.selectByTypeId(type.getTypeId());
+                List<Site> availableSites = siteMapper.selectAvailable(type.getTypeId(), date, date);
+                totalCount += allSites.size();
+                occupiedCount += allSites.size() - (availableSites != null ? availableSites.size() : 0);
+            }
+
+            double occupancyRate = totalCount > 0 ? (double) occupiedCount / totalCount : 0;
+
+            Map<String, Object> occupancy = new LinkedHashMap<>();
             occupancy.put("date", date);
-            occupancy.put("occupiedCount", 5);
-            occupancy.put("totalCount", 10);
-            occupancy.put("occupancyRate", 0.5);
+            occupancy.put("occupiedCount", occupiedCount);
+            occupancy.put("totalCount", totalCount);
+            occupancy.put("availableCount", totalCount - occupiedCount);
+            occupancy.put("occupancyRate", Math.round(occupancyRate * 100) / 100.0);
             return Result.success(occupancy);
         } catch (Exception e) {
-            return Result.error("获取占用情况失败: " + e.getMessage());
+            return Result.error("Failed to get occupancy: " + e.getMessage());
         }
     }
 
     /**
-     * 获取收益趋势数据
+     * Get revenue trend
      */
     @GetMapping("/revenue/trend")
-    public Result<Object> getRevenueTrend(@RequestParam(defaultValue = "30") Integer days) {
+    public Result<Object> getRevenueTrend(@RequestParam String startDate, @RequestParam String endDate) {
         try {
-            // TODO: 获取过去N天的收益趋势
+            List<Booking> allBookings = bookingMapper.selectAll();
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
             List<Object> trend = new ArrayList<>();
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                BigDecimal dailyRevenue = BigDecimal.ZERO;
+                int bookingCount = 0;
+
+                for (Booking booking : allBookings) {
+                    if (booking.getStatus() == 2) {
+                        LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
+                        LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
+                        if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
+                            bookingCount++;
+                            int nights = (int) (checkOut.toEpochDay() - checkIn.toEpochDay());
+                            if (nights > 0) {
+                                BigDecimal dailyAmount = booking.getTotalPrice().divide(BigDecimal.valueOf(nights), 2,
+                                        BigDecimal.ROUND_HALF_UP);
+                                dailyRevenue = dailyRevenue.add(dailyAmount);
+                            }
+                        }
+                    }
+                }
+
+                Map<String, Object> dayData = new LinkedHashMap<>();
+                dayData.put("date", date.format(DateTimeFormatter.ISO_DATE));
+                dayData.put("revenue", dailyRevenue);
+                dayData.put("bookingCount", bookingCount);
+                trend.add(dayData);
+            }
             return Result.success(trend);
         } catch (Exception e) {
-            return Result.error("获取收益趋势失败: " + e.getMessage());
+            return Result.error("Failed to get revenue trend: " + e.getMessage());
         }
     }
 
     /**
-     * 手动调整订单价格
+     * Adjust booking price
      */
-    @PostMapping("/booking/price-adjust")
-    public Result<Void> adjustBookingPrice(@RequestBody Map<String, Object> data) {
+    @PutMapping("/booking/{bookingId}/price")
+    public Result<Void> adjustBookingPrice(@PathVariable Long bookingId, @RequestBody Map<String, Object> data) {
         try {
-            // data: bookingId(Long), newPrice(BigDecimal), remark(String)
-            // TODO: 更新订单价格并记录操作日志
+            Booking booking = bookingMapper.selectById(bookingId);
+            if (booking == null) {
+                return Result.error("Booking not found");
+            }
+
+            BigDecimal newPrice = new BigDecimal(data.get("price").toString());
+            BigDecimal oldPrice = booking.getTotalPrice();
+            booking.setTotalPrice(newPrice);
+            bookingMapper.update(booking);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "ADJUST_PRICE",
+                    null,
+                    "ADMIN",
+                    "Adjust booking price from " + oldPrice + " to " + newPrice,
+                    "bookingId=" + bookingId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("调整订单价格失败: " + e.getMessage());
+            return Result.error("Failed to adjust price: " + e.getMessage());
         }
     }
 
     /**
-     * 查询用户操作记录
+     * Get user behavior log
      */
-    @GetMapping("/user/{userId}/behavior")
-    public Result<List<Object>> getUserBehaviorLog(@PathVariable Long userId,
-            @RequestParam(defaultValue = "50") Integer limit) {
+    @GetMapping("/logs/user-behavior")
+    public Result<Object> getUserBehaviorLog(@RequestParam(required = false) Long userId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize) {
         try {
-            // TODO: 查询用户行为日志，限制返回条数
-            return Result.success(new ArrayList<>());
+            Map<String, Object> params = new HashMap<>();
+            List<OperationLog> logs = operationLogMapper.selectAll(params);
+
+            if (userId != null) {
+                logs.removeIf(log -> !userId.equals(log.getOperatorId()));
+            }
+
+            int total = logs.size();
+            int startIndex = (page - 1) * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, total);
+
+            List<Object> items = new ArrayList<>();
+            if (startIndex < total) {
+                for (int i = startIndex; i < endIndex; i++) {
+                    OperationLog log = logs.get(i);
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("logId", log.getLogId());
+                    item.put("operation", log.getOperation());
+                    item.put("operatorId", log.getOperatorId());
+                    item.put("description", log.getDescription());
+                    item.put("logTime", log.getLogTime());
+                    items.add(item);
+                }
+            }
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("items", items);
+            result.put("total", total);
+            result.put("page", page);
+            result.put("pageSize", pageSize);
+            return Result.success(result);
         } catch (Exception e) {
-            return Result.error("获取用户行为记录失败: " + e.getMessage());
+            return Result.error("Failed to get user behavior log: " + e.getMessage());
         }
     }
 
+    // ========== Site Type CRUD ==========
+
     /**
-     * 新增房型
+     * Create site type
      */
     @PostMapping("/type")
-    public Result<Object> createSiteType(@RequestBody Map<String, Object> typeData) {
+    public Result<Object> createSiteType(@RequestBody SiteType siteType) {
         try {
-            // TODO: 新增房型，typeData 包含 typeName, basePrice, maxGuests, description, imageUrl
-            // 等
-            // 返回新建房型信息
-            return Result.success(new HashMap<>());
+            siteType.setCreateTime(LocalDateTime.now());
+            siteType.setUpdateTime(LocalDateTime.now());
+            siteTypeMapper.insert(siteType);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "CREATE_SITE_TYPE",
+                    null,
+                    "ADMIN",
+                    "Create site type: " + siteType.getTypeName(),
+                    "typeId=" + siteType.getTypeId(),
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("typeId", siteType.getTypeId());
+            result.put("typeName", siteType.getTypeName());
+            return Result.success(result);
         } catch (Exception e) {
-            return Result.error("新增房型失败: " + e.getMessage());
+            return Result.error("Failed to create site type: " + e.getMessage());
         }
     }
 
     /**
-     * 修改房型
+     * Update site type
      */
     @PutMapping("/type/{typeId}")
-    public Result<Void> updateSiteType(@PathVariable Long typeId, @RequestBody Map<String, Object> typeData) {
+    public Result<Void> updateSiteType(@PathVariable Long typeId, @RequestBody SiteType siteType) {
         try {
-            // TODO: 修改房型信息，typeData 可包含 typeName, basePrice, maxGuests, description,
-            // imageUrl 等
+            SiteType existing = siteTypeMapper.selectById(typeId);
+            if (existing == null) {
+                return Result.error("Site type not found");
+            }
+
+            siteType.setTypeId(typeId);
+            siteType.setUpdateTime(LocalDateTime.now());
+            siteTypeMapper.update(siteType);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "UPDATE_SITE_TYPE",
+                    null,
+                    "ADMIN",
+                    "Update site type: " + siteType.getTypeName(),
+                    "typeId=" + typeId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("修改房型失败: " + e.getMessage());
+            return Result.error("Failed to update site type: " + e.getMessage());
         }
     }
 
     /**
-     * 删除房型
+     * Delete site type
      */
     @DeleteMapping("/type/{typeId}")
     public Result<Void> deleteSiteType(@PathVariable Long typeId) {
         try {
-            // TODO: 删除房型及相关数据
+            SiteType existing = siteTypeMapper.selectById(typeId);
+            if (existing == null) {
+                return Result.error("Site type not found");
+            }
+
+            List<Site> sites = siteMapper.selectByTypeId(typeId);
+            if (!sites.isEmpty()) {
+                return Result.error("Cannot delete site type with existing sites");
+            }
+
+            siteTypeMapper.delete(typeId);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "DELETE_SITE_TYPE",
+                    null,
+                    "ADMIN",
+                    "Delete site type: " + existing.getTypeName(),
+                    "typeId=" + typeId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("删除房型失败: " + e.getMessage());
+            return Result.error("Failed to delete site type: " + e.getMessage());
         }
     }
 
+    // ========== Equipment CRUD ==========
+
     /**
-     * 新增装备
+     * Create equipment
      */
-    @PostMapping("/equip")
-    public Result<Object> createEquipment(@RequestBody Map<String, Object> equipData) {
+    @PostMapping("/equipment")
+    public Result<Object> createEquipment(@RequestBody Equipment equipment) {
         try {
-            // TODO: 新增装备，equipData 包含 equipName, unitPrice, totalStock, description,
-            // category 等
-            // 返回新建装备信息
-            return Result.success(new HashMap<>());
+            equipment.setCreateTime(LocalDateTime.now());
+            equipment.setUpdateTime(LocalDateTime.now());
+            equipmentMapper.insert(equipment);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "CREATE_EQUIPMENT",
+                    null,
+                    "ADMIN",
+                    "Create equipment: " + equipment.getEquipName(),
+                    "equipId=" + equipment.getEquipId(),
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("equipId", equipment.getEquipId());
+            result.put("equipName", equipment.getEquipName());
+            return Result.success(result);
         } catch (Exception e) {
-            return Result.error("新增装备失败: " + e.getMessage());
+            return Result.error("Failed to create equipment: " + e.getMessage());
         }
     }
 
     /**
-     * 修改装备
+     * Update equipment
      */
-    @PutMapping("/equip/{equipId}")
-    public Result<Void> updateEquipment(@PathVariable Long equipId, @RequestBody Map<String, Object> equipData) {
+    @PutMapping("/equipment/{equipId}")
+    public Result<Void> updateEquipment(@PathVariable Long equipId, @RequestBody Equipment equipment) {
         try {
-            // TODO: 修改装备信息，equipData 可包含 equipName, unitPrice, totalStock, description,
-            // category 等
+            Equipment existing = equipmentMapper.selectById(equipId);
+            if (existing == null) {
+                return Result.error("Equipment not found");
+            }
+
+            equipment.setEquipId(equipId);
+            equipment.setUpdateTime(LocalDateTime.now());
+            equipmentMapper.update(equipment);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "UPDATE_EQUIPMENT",
+                    null,
+                    "ADMIN",
+                    "Update equipment: " + equipment.getEquipName(),
+                    "equipId=" + equipId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("修改装备失败: " + e.getMessage());
+            return Result.error("Failed to update equipment: " + e.getMessage());
         }
     }
 
     /**
-     * 删除装备
+     * Delete equipment
      */
-    @DeleteMapping("/equip/{equipId}")
+    @DeleteMapping("/equipment/{equipId}")
     public Result<Void> deleteEquipment(@PathVariable Long equipId) {
         try {
-            // TODO: 删除装备及相关数据
+            Equipment existing = equipmentMapper.selectById(equipId);
+            if (existing == null) {
+                return Result.error("Equipment not found");
+            }
+
+            equipmentMapper.delete(equipId);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "DELETE_EQUIPMENT",
+                    null,
+                    "ADMIN",
+                    "Delete equipment: " + existing.getEquipName(),
+                    "equipId=" + equipId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
             return Result.success(null);
         } catch (Exception e) {
-            return Result.error("删除装备失败: " + e.getMessage());
+            return Result.error("Failed to delete equipment: " + e.getMessage());
         }
     }
 }

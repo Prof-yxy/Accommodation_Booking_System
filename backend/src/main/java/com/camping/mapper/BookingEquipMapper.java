@@ -1,6 +1,7 @@
 package com.camping.mapper;
 
 import com.camping.entity.BookingEquip;
+import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
@@ -16,7 +17,9 @@ public interface BookingEquipMapper {
     /**
      * 查询装备在时间段内的使用总数
      */
-    Integer sumQuantityByEquipAndDate(Long equipId, String checkIn, String checkOut);
+    Integer sumQuantityByEquipAndDate(@Param("equipId") Long equipId,
+            @Param("checkIn") String checkIn,
+            @Param("checkOut") String checkOut);
 
     /**
      * 插入预订装备

@@ -1,6 +1,7 @@
 package com.camping.mapper;
 
 import com.camping.entity.DailyPrice;
+import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
@@ -11,12 +12,15 @@ public interface DailyPriceMapper {
     /**
      * 按房型和日期查询价格
      */
-    DailyPrice selectByTypeAndDate(Long typeId, String date);
+    DailyPrice selectByTypeAndDate(@Param("typeId") Long typeId,
+            @Param("specificDate") String date);
 
     /**
      * 按房型和日期范围查询价格
      */
-    List<DailyPrice> selectByTypeAndDateRange(Long typeId, String startDate, String endDate);
+    List<DailyPrice> selectByTypeAndDateRange(@Param("typeId") Long typeId,
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
 
     /**
      * 插入价格

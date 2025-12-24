@@ -41,4 +41,8 @@
         WHERE type_id = #{typeId}
     </update>
 
+    <delete id="delete" parameterType="java.lang.Long">
+        DELETE FROM site_types WHERE type_id = #{typeId}
+    </delete>
+
 </mapper>

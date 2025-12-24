@@ -1,13 +1,21 @@
 package com.camping.service.impl;
 
 import com.camping.entity.SiteType;
+import com.camping.entity.Site;
 import com.camping.entity.Equipment;
+import com.camping.entity.DailyPrice;
 import com.camping.mapper.SiteTypeMapper;
 import com.camping.mapper.EquipmentMapper;
 import com.camping.mapper.SiteMapper;
+import com.camping.mapper.DailyPriceMapper;
+import com.camping.mapper.BookingMapper;
+import com.camping.mapper.BookingEquipMapper;
 import com.camping.service.ResourceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -25,23 +33,43 @@ public class ResourceServiceImpl implements ResourceService {
     @Autowired
     private SiteMapper siteMapper;
 
+    @Autowired
+    private DailyPriceMapper dailyPriceMapper;
+
+    @Autowired
+    private BookingMapper bookingMapper;
+
+    @Autowired
+    private BookingEquipMapper bookingEquipMapper;
+
     /**
      * 获取所有房型列表
      */
     @Override
     public List<Object> getSiteTypes() throws Exception {
-        // TODO: 调用 Mapper 查询所有房型，计算 totalSites / availableSites
-        // List<SiteType> types = siteTypeMapper.selectAll();
-        // return types.stream().map(t -> Map.of(
-        // "typeId", t.getTypeId(),
-        // "typeName", t.getTypeName(),
-        // "basePrice", t.getBasePrice(),
-        // "maxGuests", t.getMaxGuests(),
-        // "totalSites", total,
-        // "availableSites", available,
-        // "description", t.getDescription()
-        // )).toList();
-        return new ArrayList<>();
+        List<SiteType> types = siteTypeMapper.selectAll();
+        List<Object> result = new ArrayList<>();
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+
+        for (SiteType t : types) {
+            List<Site> sites = siteMapper.selectByTypeId(t.getTypeId());
+            int totalSites = sites.size();
+            // 查询今天可用营位数
+            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, today);
+            int available = availableSites != null ? availableSites.size() : totalSites;
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("typeId", t.getTypeId());
+            item.put("typeName", t.getTypeName());
+            item.put("basePrice", t.getBasePrice());
+            item.put("maxGuests", t.getMaxGuests());
+            item.put("totalSites", totalSites);
+            item.put("availableSites", available);
+            item.put("description", t.getDescription());
+            item.put("imageUrl", t.getImageUrl());
+            result.add(item);
+        }
+        return result;
     }
 
     /**
@@ -49,10 +77,34 @@ public class ResourceServiceImpl implements ResourceService {
      */
     @Override
     public List<Object> getSiteTypesToday() throws Exception {
-        // TODO: 查询视图 view_site_availability_today
-        // 返回字段: typeId, typeName, priceToday, basePrice, maxGuests, totalSites,
-        // availableSites, description
-        return new ArrayList<>();
+        List<SiteType> types = siteTypeMapper.selectAll();
+        List<Object> result = new ArrayList<>();
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+
+        for (SiteType t : types) {
+            // 查询当日浮动价格
+            DailyPrice dp = dailyPriceMapper.selectByTypeAndDate(t.getTypeId(), today);
+            BigDecimal priceToday = (dp != null && dp.getPrice() != null) ? dp.getPrice() : t.getBasePrice();
+
+            // 查询营位总数和可用数
+            List<Site> sites = siteMapper.selectByTypeId(t.getTypeId());
+            int totalSites = sites.size();
+            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, today);
+            int available = availableSites != null ? availableSites.size() : totalSites;
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("typeId", t.getTypeId());
+            item.put("typeName", t.getTypeName());
+            item.put("priceToday", priceToday);
+            item.put("basePrice", t.getBasePrice());
+            item.put("maxGuests", t.getMaxGuests());
+            item.put("totalSites", totalSites);
+            item.put("availableSites", available);
+            item.put("description", t.getDescription());
+            item.put("imageUrl", t.getImageUrl());
+            result.add(item);
+        }
+        return result;
     }
 
     /**
@@ -64,9 +116,28 @@ public class ResourceServiceImpl implements ResourceService {
             throw new Exception("房型ID不能为空");
         }
 
-        // TODO: 从数据库查询房型详情
-        // SELECT * FROM SiteTypeTable WHERE typeId = ?
-        return new HashMap<>();
+        SiteType t = siteTypeMapper.selectById(typeId);
+        if (t == null) {
+            throw new Exception("房型不存在");
+        }
+
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        List<Site> sites = siteMapper.selectByTypeId(typeId);
+        int totalSites = sites.size();
+        List<Site> availableSites = siteMapper.selectAvailable(typeId, today, today);
+        int available = availableSites != null ? availableSites.size() : totalSites;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("typeId", t.getTypeId());
+        result.put("typeName", t.getTypeName());
+        result.put("basePrice", t.getBasePrice());
+        result.put("maxGuests", t.getMaxGuests());
+        result.put("totalSites", totalSites);
+        result.put("availableSites", available);
+        result.put("description", t.getDescription());
+        result.put("imageUrl", t.getImageUrl());
+        result.put("status", t.getStatus());
+        return result;
     }
 
     /**
@@ -81,31 +152,47 @@ public class ResourceServiceImpl implements ResourceService {
 
         Map<String, Object> calendar = new HashMap<>();
 
-        try {
-            // 1. 查询房型信息
-            // SiteType siteType = siteTypeMapper.selectById(typeId);
-
-            // 2. 遍历日期范围
-            List<Map<String, Object>> calendarData = new ArrayList<>();
-            // for (LocalDate date = startDate; date <= endDate; date++) {
-            // // 查询该天的浮动价格
-            // DailyPrice price = dailyPriceMapper.selectByTypeAndDate(typeId, date);
-            // // 查询该天已预订的营位数
-            // int occupiedCount = bookingMapper.countOccupied(typeId, date);
-            // // 添加到日历数据
-            // calendarData.add({date, price, occupiedCount, availableCount});
-            // }
-
-            calendar.put("typeId", typeId);
-            calendar.put("startDate", startDate);
-            calendar.put("endDate", endDate);
-            calendar.put("calendarData", calendarData);
-
-            return calendar;
-
-        } catch (Exception e) {
-            throw new Exception("获取日历失败: " + e.getMessage());
+        SiteType siteType = siteTypeMapper.selectById(typeId);
+        if (siteType == null) {
+            throw new Exception("房型不存在");
         }
+
+        List<Site> allSites = siteMapper.selectByTypeId(typeId);
+        int totalSites = allSites.size();
+
+        // 查询日期范围内的浮动价格
+        List<DailyPrice> dailyPrices = dailyPriceMapper.selectByTypeAndDateRange(typeId, startDate, endDate);
+        Map<String, BigDecimal> priceMap = new HashMap<>();
+        for (DailyPrice dp : dailyPrices) {
+            priceMap.put(dp.getSpecificDate(), dp.getPrice());
+        }
+
+        // 遍历日期范围生成日历数据
+        List<Map<String, Object>> calendarData = new ArrayList<>();
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
+
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            String dateStr = date.format(fmt);
+            BigDecimal price = priceMap.getOrDefault(dateStr, siteType.getBasePrice());
+            List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, dateStr);
+            int available = availableSites != null ? availableSites.size() : totalSites;
+
+            Map<String, Object> dayData = new LinkedHashMap<>();
+            dayData.put("date", dateStr);
+            dayData.put("price", price);
+            dayData.put("available", available > 0);
+            dayData.put("stock", available);
+            calendarData.add(dayData);
+        }
+
+        calendar.put("typeId", typeId);
+        calendar.put("typeName", siteType.getTypeName());
+        calendar.put("basePrice", siteType.getBasePrice());
+        calendar.put("calendarData", calendarData);
+
+        return calendar;
     }
 
     /**
@@ -113,18 +200,27 @@ public class ResourceServiceImpl implements ResourceService {
      */
     @Override
     public List<Object> getEquipments() throws Exception {
-        // TODO: 调用 Mapper 查询所有装备，计算 availableStock = totalStock - reservedCount
-        // List<Equipment> equipments = equipmentMapper.selectAll();
-        // return equipments.stream().map(e -> Map.of(
-        // "equipId", e.getEquipId(),
-        // "equipName", e.getEquipName(),
-        // "unitPrice", e.getUnitPrice(),
-        // "totalStock", e.getTotalStock(),
-        // "availableStock", available,
-        // "category", e.getCategory(),
-        // "description", e.getDescription()
-        // )).toList();
-        return new ArrayList<>();
+        List<Equipment> equipments = equipmentMapper.selectAll();
+        List<Object> result = new ArrayList<>();
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+
+        for (Equipment e : equipments) {
+            // 计算当日已预订数量
+            Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(e.getEquipId(), today, today);
+            int used = usedCount != null ? usedCount : 0;
+            int available = (e.getTotalStock() != null ? e.getTotalStock() : 0) - used;
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("equipId", e.getEquipId());
+            item.put("equipName", e.getEquipName());
+            item.put("unitPrice", e.getUnitPrice());
+            item.put("totalStock", e.getTotalStock());
+            item.put("availableStock", Math.max(available, 0));
+            item.put("category", e.getCategory());
+            item.put("description", e.getDescription());
+            result.add(item);
+        }
+        return result;
     }
 
     /**
@@ -132,10 +228,7 @@ public class ResourceServiceImpl implements ResourceService {
      */
     @Override
     public List<Object> getEquipmentsToday() throws Exception {
-        // TODO: 查询视图 view_equipment_availability_today
-        // 返回字段: equipId, equipName, category, unitPrice, totalStock, availableStock,
-        // description
-        return new ArrayList<>();
+        return getEquipments(); // 逻辑相同，都基于当日计算
     }
 
     /**
@@ -147,7 +240,25 @@ public class ResourceServiceImpl implements ResourceService {
             throw new Exception("装备ID不能为空");
         }
 
-        // TODO: 查询装备详情
-        return new HashMap<>();
+        Equipment e = equipmentMapper.selectById(equipId);
+        if (e == null) {
+            throw new Exception("装备不存在");
+        }
+
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(equipId, today, today);
+        int used = usedCount != null ? usedCount : 0;
+        int available = (e.getTotalStock() != null ? e.getTotalStock() : 0) - used;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("equipId", e.getEquipId());
+        result.put("equipName", e.getEquipName());
+        result.put("unitPrice", e.getUnitPrice());
+        result.put("totalStock", e.getTotalStock());
+        result.put("availableStock", Math.max(available, 0));
+        result.put("category", e.getCategory());
+        result.put("description", e.getDescription());
+        result.put("status", e.getStatus());
+        return result;
     }
 }

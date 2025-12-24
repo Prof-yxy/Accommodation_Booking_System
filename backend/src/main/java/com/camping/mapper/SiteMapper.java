@@ -1,6 +1,7 @@
 package com.camping.mapper;
 
 import com.camping.entity.Site;
+import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
@@ -21,7 +22,9 @@ public interface SiteMapper {
     /**
      * 查询可用营位（指定时间内无预订冲突）
      */
-    List<Site> selectAvailable(Long typeId, String checkIn, String checkOut);
+    List<Site> selectAvailable(@Param("typeId") Long typeId,
+            @Param("checkIn") String checkIn,
+            @Param("checkOut") String checkOut);
 
     /**
      * 插入营位

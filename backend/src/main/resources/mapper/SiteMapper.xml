@@ -34,10 +34,9 @@
             FROM bookings b
             WHERE b.type_id = #{typeId}
             AND b.status IN (0, 1)
-            AND NOT (b.check_out &lt;= #{checkIn} OR b.check_in &gt;= #{checkOut})
+            AND NOT (b.check_out &lt;= CAST(#{checkIn} AS DATE) OR b.check_in &gt;= CAST(#{checkOut} AS DATE))
         )
         ORDER BY s.site_no
-        LIMIT #{limit}
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.Site" useGeneratedKeys="true" keyProperty="siteId">

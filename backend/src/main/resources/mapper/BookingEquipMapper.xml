@@ -21,7 +21,7 @@
         JOIN bookings b ON be.booking_id = b.booking_id
         WHERE be.equip_id = #{equipId}
         AND b.status IN (0, 1)
-        AND NOT (b.check_out &lt;= #{checkIn} OR b.check_in &gt;= #{checkOut})
+        AND NOT (b.check_out &lt;= CAST(#{checkIn} AS DATE) OR b.check_in &gt;= CAST(#{checkOut} AS DATE))
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.BookingEquip" useGeneratedKeys="true" keyProperty="bookingEquipId">

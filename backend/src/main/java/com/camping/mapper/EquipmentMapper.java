@@ -32,4 +32,9 @@ public interface EquipmentMapper {
      * 更新装备
      */
     void update(Equipment equipment);
+
+    /**
+     * 删除装备
+     */
+    void delete(Long equipId);
 }

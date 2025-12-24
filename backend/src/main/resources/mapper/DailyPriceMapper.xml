@@ -5,7 +5,7 @@
     <resultMap id="DailyPriceResultMap" type="com.camping.entity.DailyPrice">
         <id column="price_id" property="priceId" javaType="java.lang.Long"/>
         <result column="type_id" property="typeId" javaType="java.lang.Long"/>
-        <result column="specific_date" property="specificDate" javaType="java.time.LocalDate"/>
+        <result column="specific_date" property="specificDate" javaType="java.lang.String"/>
         <result column="price" property="price" javaType="java.math.BigDecimal"/>
         <result column="remark" property="remark" javaType="java.lang.String"/>
         <result column="create_time" property="createTime" javaType="java.time.LocalDateTime"/>
@@ -14,7 +14,7 @@
     <select id="selectByTypeAndDate" parameterType="java.util.Map" resultMap="DailyPriceResultMap">
         SELECT price_id, type_id, specific_date, price, remark, create_time
         FROM daily_prices
-        WHERE type_id = #{typeId} AND specific_date = #{specificDate}
+        WHERE type_id = #{typeId} AND specific_date = CAST(#{specificDate} AS DATE)
         LIMIT 1
     </select>
 
@@ -22,25 +22,25 @@
         SELECT price_id, type_id, specific_date, price, remark, create_time
         FROM daily_prices
         WHERE type_id = #{typeId}
-        AND specific_date BETWEEN #{startDate} AND #{endDate}
+        AND specific_date BETWEEN CAST(#{startDate} AS DATE) AND CAST(#{endDate} AS DATE)
         ORDER BY specific_date
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.DailyPrice" useGeneratedKeys="true" keyProperty="priceId">
         INSERT INTO daily_prices (type_id, specific_date, price, remark, create_time)
-        VALUES (#{typeId}, #{specificDate}, #{price}, #{remark}, #{createTime})
+        VALUES (#{typeId}, CAST(#{specificDate} AS DATE), #{price}, #{remark}, #{createTime})
     </insert>
 
     <update id="update" parameterType="com.camping.entity.DailyPrice">
         UPDATE daily_prices
         SET price = #{price},
             remark = #{remark}
-        WHERE type_id = #{typeId} AND specific_date = #{specificDate}
+        WHERE type_id = #{typeId} AND specific_date = CAST(#{specificDate} AS DATE)
     </update>
 
     <delete id="delete" parameterType="java.util.Map">
         DELETE FROM daily_prices
-        WHERE type_id = #{typeId} AND specific_date = #{specificDate}
+        WHERE type_id = #{typeId} AND specific_date = CAST(#{specificDate} AS DATE)
     </delete>
 
 </mapper>

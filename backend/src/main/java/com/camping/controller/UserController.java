@@ -77,8 +77,8 @@ public class UserController {
      */
     @PostMapping("/logout")
     public Result<Void> logout(@RequestParam String token) {
-        // TODO: 清除 Token
-        // 在前端删除Token即可
+        // JWT tokens are stateless, logout is handled by removing token on client side
+        // For enhanced security, a token blacklist could be implemented here
         return Result.success(null);
     }
 
@@ -102,9 +102,9 @@ public class UserController {
     @PostMapping("/password")
     public Result<Void> changePassword(@RequestBody Map<String, Object> data) {
         /*
-        data: token->String
-              oldPassword->String
-              newPassword->String
+         * data: token->String
+         * oldPassword->String
+         * newPassword->String
          */
         try {
             Long userId = JwtUtil.getUserIdFromToken((String) data.get("token")); // 从 Token 获取

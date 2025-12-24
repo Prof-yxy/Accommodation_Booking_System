@@ -7,8 +7,8 @@
         <result column="user_id" property="userId" javaType="java.lang.Long"/>
         <result column="site_id" property="siteId" javaType="java.lang.Long"/>
         <result column="type_id" property="typeId" javaType="java.lang.Long"/>
-        <result column="check_in" property="checkIn" javaType="java.time.LocalDate"/>
-        <result column="check_out" property="checkOut" javaType="java.time.LocalDate"/>
+        <result column="check_in" property="checkIn" javaType="java.lang.String"/>
+        <result column="check_out" property="checkOut" javaType="java.lang.String"/>
         <result column="guest_name" property="guestName" javaType="java.lang.String"/>
         <result column="guest_phone" property="guestPhone" javaType="java.lang.String"/>
         <result column="total_price" property="totalPrice" javaType="java.math.BigDecimal"/>
@@ -46,13 +46,13 @@
         FROM bookings
         WHERE type_id = #{typeId}
         AND status IN (0, 1)
-        AND NOT (check_out &lt;= #{checkIn} OR check_in &gt;= #{checkOut})
+        AND NOT (check_out &lt;= CAST(#{checkIn} AS DATE) OR check_in &gt;= CAST(#{checkOut} AS DATE))
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.Booking" useGeneratedKeys="true" keyProperty="bookingId">
         INSERT INTO bookings (user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
                              total_price, status, create_time, update_time)
-        VALUES (#{userId}, #{siteId}, #{typeId}, #{checkIn}, #{checkOut}, #{guestName}, #{guestPhone},
+        VALUES (#{userId}, #{siteId}, #{typeId}, CAST(#{checkIn} AS DATE), CAST(#{checkOut} AS DATE), #{guestName}, #{guestPhone},
                 #{totalPrice}, #{status}, #{createTime}, #{updateTime})
     </insert>
 
@@ -61,8 +61,8 @@
         SET user_id = #{userId},
             site_id = #{siteId},
             type_id = #{typeId},
-            check_in = #{checkIn},
-            check_out = #{checkOut},
+            check_in = CAST(#{checkIn} AS DATE),
+            check_out = CAST(#{checkOut} AS DATE),
             guest_name = #{guestName},
             guest_phone = #{guestPhone},
             total_price = #{totalPrice},
@@ -70,5 +70,12 @@
             update_time = #{updateTime}
         WHERE booking_id = #{bookingId}
     </update>
+
+    <select id="selectAll" resultMap="BookingResultMap">
+        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
+               total_price, status, create_time, update_time
+        FROM bookings
+        ORDER BY create_time DESC
+    </select>
 
 </mapper>

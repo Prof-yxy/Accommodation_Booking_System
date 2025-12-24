@@ -27,4 +27,9 @@ public interface SiteTypeMapper {
      * 更新房型
      */
     void update(SiteType siteType);
+
+    /**
+     * 删除房型
+     */
+    void delete(Long typeId);
 }

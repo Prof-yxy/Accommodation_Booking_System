@@ -1,12 +1,12 @@
 package com.camping.dto;
 
-import lombok.Data;
-
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@Data
+/**
+ * User info DTO
+ */
 public class UserInfoDTO {
     private Long userId;
     private String username;
@@ -20,12 +20,12 @@ public class UserInfoDTO {
     }
 
     public UserInfoDTO(Long userId,
-                       String username,
-                       String token,
-                       String role,
-                       String phone,
-                       LocalDateTime createTime,
-                       LocalDateTime updateTime) {
+            String username,
+            String token,
+            String role,
+            String phone,
+            LocalDateTime createTime,
+            LocalDateTime updateTime) {
         this.userId = userId;
         this.username = username;
         this.token = token;
@@ -55,5 +55,61 @@ public class UserInfoDTO {
         ret.put("createTime", createTime);
         ret.put("updateTime", updateTime);
         return ret;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public LocalDateTime getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(LocalDateTime createTime) {
+        this.createTime = createTime;
+    }
+
+    public LocalDateTime getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(LocalDateTime updateTime) {
+        this.updateTime = updateTime;
     }
 }

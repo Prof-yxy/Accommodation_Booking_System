@@ -1,164 +1,303 @@
 package com.camping.service.impl;
 
 import com.camping.dto.PriceSetDTO;
+import com.camping.entity.*;
+import com.camping.mapper.*;
 import com.camping.service.AdminService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * 管理员业务实现
+ * Admin service implementation with database operations
  */
 @Service
 public class AdminServiceImpl implements AdminService {
 
+    @Autowired
+    private DailyPriceMapper dailyPriceMapper;
+
+    @Autowired
+    private SiteTypeMapper siteTypeMapper;
+
+    @Autowired
+    private SiteMapper siteMapper;
+
+    @Autowired
+    private BookingMapper bookingMapper;
+
+    @Autowired
+    private OperationLogMapper operationLogMapper;
+
     /**
-     * 设置日价格
+     * Set daily prices for multiple dates
      */
     @Override
     public void setDailyPrice(PriceSetDTO dto) throws Exception {
         if (dto == null || dto.getTypeId() == null || dto.getDates() == null || dto.getPrice() == null) {
-            throw new Exception("参数不完整");
+            throw new Exception("Missing required parameters");
         }
 
         try {
-            // TODO: 遍历日期列表，为每个日期插入或更新价格记录
-            // for (String date : dto.getDates()) {
-            // // INSERT INTO DailyPriceTable (typeId, specificDate, price, createTime,
-            // updateTime)
-            // // VALUES (?, ?, ?, now(), now())
-            // // ON CONFLICT (typeId, specificDate) DO UPDATE SET price = ?, updateTime =
-            // now()
-            // }
-
+            for (String date : dto.getDates()) {
+                DailyPrice existing = dailyPriceMapper.selectByTypeAndDate(dto.getTypeId(), date);
+                if (existing != null) {
+                    existing.setPrice(dto.getPrice());
+                    existing.setUpdateTime(LocalDateTime.now());
+                    dailyPriceMapper.update(existing);
+                } else {
+                    DailyPrice newPrice = new DailyPrice();
+                    newPrice.setTypeId(dto.getTypeId());
+                    newPrice.setSpecificDate(date);
+                    newPrice.setPrice(dto.getPrice());
+                    newPrice.setCreateTime(LocalDateTime.now());
+                    newPrice.setUpdateTime(LocalDateTime.now());
+                    dailyPriceMapper.insert(newPrice);
+                }
+            }
         } catch (Exception e) {
-            throw new Exception("设置价格失败: " + e.getMessage());
+            throw new Exception("Failed to set price: " + e.getMessage());
         }
     }
 
     /**
-     * 获取日收入报表
-     * 查询 View_Daily_Revenue 视图
+     * Get daily revenue report
      */
     @Override
     public Map<String, Object> getDailyReport(String startDate, String endDate) throws Exception {
         if (startDate == null || endDate == null) {
-            throw new Exception("日期参数不完整");
+            throw new Exception("Missing date parameters");
         }
 
-        Map<String, Object> report = new HashMap<>();
+        Map<String, Object> report = new LinkedHashMap<>();
 
         try {
-            // TODO: 查询 View_Daily_Revenue
-            // SELECT date, SUM(totalPrice) as revenue, COUNT(*) as bookingCount
-            // FROM View_Daily_Revenue
-            // WHERE date BETWEEN ? AND ?
-            // GROUP BY date
+            List<Booking> allBookings = bookingMapper.selectAll();
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
 
             List<Map<String, Object>> dailyData = new ArrayList<>();
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+            int totalBookings = 0;
+
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                String dateStr = date.format(DateTimeFormatter.ISO_DATE);
+                int bookingCount = 0;
+                BigDecimal revenue = BigDecimal.ZERO;
+
+                for (Booking booking : allBookings) {
+                    if (booking.getStatus() == 2) {
+                        LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
+                        LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
+                        if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
+                            bookingCount++;
+                            int nights = (int) (checkOut.toEpochDay() - checkIn.toEpochDay());
+                            if (nights > 0) {
+                                BigDecimal dailyAmount = booking.getTotalPrice().divide(BigDecimal.valueOf(nights), 2,
+                                        BigDecimal.ROUND_HALF_UP);
+                                revenue = revenue.add(dailyAmount);
+                            }
+                        }
+                    }
+                }
+
+                Map<String, Object> dayData = new LinkedHashMap<>();
+                dayData.put("date", dateStr);
+                dayData.put("bookingCount", bookingCount);
+                dayData.put("revenue", revenue);
+                dailyData.add(dayData);
+
+                totalRevenue = totalRevenue.add(revenue);
+                totalBookings += bookingCount;
+            }
+
+            int days = dailyData.size();
+            BigDecimal avgRevenue = days > 0
+                    ? totalRevenue.divide(BigDecimal.valueOf(days), 2, BigDecimal.ROUND_HALF_UP)
+                    : BigDecimal.ZERO;
 
             report.put("startDate", startDate);
             report.put("endDate", endDate);
-            report.put("totalRevenue", 0);
-            report.put("totalBookings", 0);
-            report.put("averageDailyRevenue", 0);
+            report.put("totalRevenue", totalRevenue);
+            report.put("totalBookings", totalBookings);
+            report.put("averageDailyRevenue", avgRevenue);
             report.put("dailyData", dailyData);
 
             return report;
 
         } catch (Exception e) {
-            throw new Exception("获取日报表失败: " + e.getMessage());
+            throw new Exception("Failed to get daily report: " + e.getMessage());
         }
     }
 
     /**
-     * 获取房型报表
+     * Get report by site type
      */
     @Override
     public List<Object> getTypeReport(String startDate, String endDate) throws Exception {
         if (startDate == null || endDate == null) {
-            throw new Exception("日期参数不完整");
+            throw new Exception("Missing date parameters");
         }
 
-        // TODO: 按房型统计收入
-        // SELECT typeId, typeName, SUM(totalPrice) as revenue, COUNT(*) as bookingCount
-        // FROM BookingTable b JOIN SiteTypeTable t ON b.typeId = t.typeId
-        // WHERE b.createTime BETWEEN ? AND ?
-        // GROUP BY typeId, typeName
+        List<Object> report = new ArrayList<>();
 
-        return new ArrayList<>();
+        try {
+            List<SiteType> types = siteTypeMapper.selectAll();
+            List<Booking> allBookings = bookingMapper.selectAll();
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
+
+            for (SiteType type : types) {
+                int bookingCount = 0;
+                BigDecimal revenue = BigDecimal.ZERO;
+
+                for (Booking booking : allBookings) {
+                    if (booking.getStatus() == 2 && type.getTypeId().equals(booking.getTypeId())) {
+                        LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
+                        if (!checkIn.isBefore(start) && !checkIn.isAfter(end)) {
+                            bookingCount++;
+                            revenue = revenue.add(booking.getTotalPrice());
+                        }
+                    }
+                }
+
+                Map<String, Object> typeReport = new LinkedHashMap<>();
+                typeReport.put("typeId", type.getTypeId());
+                typeReport.put("typeName", type.getTypeName());
+                typeReport.put("bookingCount", bookingCount);
+                typeReport.put("revenue", revenue);
+                report.add(typeReport);
+            }
+
+            return report;
+
+        } catch (Exception e) {
+            throw new Exception("Failed to get type report: " + e.getMessage());
+        }
     }
 
     /**
-     * 获取预订统计
+     * Get booking statistics
      */
     @Override
     public Map<String, Object> getBookingStats() throws Exception {
-        Map<String, Object> stats = new HashMap<>();
+        Map<String, Object> stats = new LinkedHashMap<>();
 
         try {
-            // TODO: 统计各状态的订单数和收入
-            // SELECT
-            // COUNT(*) as totalBookings,
-            // SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as paidBookings,
-            // SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as pendingPaymentBookings,
-            // SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END) as canceledBookings,
-            // SUM(CASE WHEN status = 1 THEN totalPrice ELSE 0 END) as totalRevenue
-            // FROM BookingTable
+            List<Booking> allBookings = bookingMapper.selectAll();
 
-            stats.put("totalBookings", 0);
-            stats.put("paidBookings", 0);
-            stats.put("pendingPaymentBookings", 0);
-            stats.put("canceledBookings", 0);
-            stats.put("totalRevenue", 0);
+            int totalBookings = allBookings.size();
+            int pendingBookings = 0;
+            int paidBookings = 0;
+            int cancelledBookings = 0;
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+
+            for (Booking booking : allBookings) {
+                if (booking.getStatus() == 1)
+                    pendingBookings++;
+                else if (booking.getStatus() == 2) {
+                    paidBookings++;
+                    totalRevenue = totalRevenue.add(booking.getTotalPrice());
+                } else if (booking.getStatus() == 3)
+                    cancelledBookings++;
+            }
+
+            stats.put("totalBookings", totalBookings);
+            stats.put("pendingBookings", pendingBookings);
+            stats.put("paidBookings", paidBookings);
+            stats.put("cancelledBookings", cancelledBookings);
+            stats.put("totalRevenue", totalRevenue);
 
             return stats;
 
         } catch (Exception e) {
-            throw new Exception("获取预订统计失败: " + e.getMessage());
+            throw new Exception("Failed to get booking stats: " + e.getMessage());
         }
     }
 
     /**
-     * 获取房型统计
+     * Get site type statistics
      */
     @Override
     public List<Object> getTypeStats() throws Exception {
-        // TODO: 按房型统计占用率、营位数、收入等
-        // SELECT
-        // t.typeId, t.typeName, t.basePrice,
-        // COUNT(DISTINCT s.siteId) as totalSites,
-        // SUM(CASE WHEN b.status != 2 THEN 1 ELSE 0 END) as occupiedSites,
-        // occupancyRate, revenue
-        // FROM SiteTypeTable t
-        // LEFT JOIN SiteTable s ON t.typeId = s.typeId
-        // LEFT JOIN BookingTable b ON s.siteId = b.siteId
-        // GROUP BY t.typeId
+        List<Object> stats = new ArrayList<>();
 
-        return new ArrayList<>();
+        try {
+            List<SiteType> types = siteTypeMapper.selectAll();
+
+            for (SiteType type : types) {
+                List<Site> sites = siteMapper.selectByTypeId(type.getTypeId());
+                int availableCount = 0;
+                int occupiedCount = 0;
+
+                for (Site site : sites) {
+                    if (site.getStatus() == 1)
+                        availableCount++;
+                    else
+                        occupiedCount++;
+                }
+
+                Map<String, Object> typeStat = new LinkedHashMap<>();
+                typeStat.put("typeId", type.getTypeId());
+                typeStat.put("typeName", type.getTypeName());
+                typeStat.put("totalSites", sites.size());
+                typeStat.put("availableSites", availableCount);
+                typeStat.put("occupiedSites", occupiedCount);
+                typeStat.put("basePrice", type.getBasePrice());
+                stats.add(typeStat);
+            }
+
+            return stats;
+
+        } catch (Exception e) {
+            throw new Exception("Failed to get type stats: " + e.getMessage());
+        }
     }
 
     /**
-     * 获取操作日志
+     * Get operation logs with pagination
      */
     @Override
     public Map<String, Object> getOperationLogs(Integer page, Integer pageSize, String operation) throws Exception {
         if (page == null || pageSize == null) {
-            throw new Exception("分页参数不完整");
+            throw new Exception("Missing pagination parameters");
         }
 
-        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> result = new LinkedHashMap<>();
 
         try {
-            // TODO: 查询操作日志，支持分页
-            // SELECT * FROM OperationLogTable
-            // WHERE operation = ? (如果指定)
-            // ORDER BY logTime DESC
-            // LIMIT ? OFFSET ?
+            List<OperationLog> logs;
+            if (operation != null && !operation.isEmpty()) {
+                logs = operationLogMapper.selectByOperation(operation);
+            } else {
+                Map<String, Object> params = new HashMap<>();
+                logs = operationLogMapper.selectAll(params);
+            }
 
-            int offset = (page - 1) * pageSize;
+            int total = logs.size();
+            int startIndex = (page - 1) * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, total);
+
             List<Object> items = new ArrayList<>();
-            int total = 0;
+            if (startIndex < total) {
+                for (int i = startIndex; i < endIndex; i++) {
+                    OperationLog log = logs.get(i);
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("logId", log.getLogId());
+                    item.put("operation", log.getOperation());
+                    item.put("operatorId", log.getOperatorId());
+                    item.put("operatorName", log.getOperatorName());
+                    item.put("description", log.getDescription());
+                    item.put("details", log.getDetails());
+                    item.put("logTime", log.getLogTime());
+                    items.add(item);
+                }
+            }
 
             result.put("items", items);
             result.put("total", total);
@@ -169,29 +308,45 @@ public class AdminServiceImpl implements AdminService {
             return result;
 
         } catch (Exception e) {
-            throw new Exception("获取操作日志失败: " + e.getMessage());
+            throw new Exception("Failed to get operation logs: " + e.getMessage());
         }
     }
 
     /**
-     * 更新营位状态
+     * Update site status
      */
     @Override
     public void updateSiteStatus(Long siteId, Integer status) throws Exception {
         if (siteId == null || status == null) {
-            throw new Exception("参数不完整");
+            throw new Exception("Missing required parameters");
         }
 
         if (status != 0 && status != 1) {
-            throw new Exception("状态值无效，只能是 0 (维护中) 或 1 (正常)");
+            throw new Exception("Invalid status value, must be 0 (maintenance) or 1 (normal)");
         }
 
         try {
-            // TODO: 更新营位状态
-            // UPDATE SiteTable SET status = ?, updateTime = now() WHERE siteId = ?
+            Site site = siteMapper.selectById(siteId);
+            if (site == null) {
+                throw new Exception("Site not found");
+            }
+
+            site.setStatus(status);
+            site.setUpdateTime(LocalDateTime.now());
+            siteMapper.update(site);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "UPDATE_SITE_STATUS",
+                    null,
+                    "SYSTEM",
+                    "Update site status to: " + (status == 1 ? "Normal" : "Maintenance"),
+                    "siteId=" + siteId + ", newStatus=" + status,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
 
         } catch (Exception e) {
-            throw new Exception("更新营位状态失败: " + e.getMessage());
+            throw new Exception("Failed to update site status: " + e.getMessage());
         }
     }
 }

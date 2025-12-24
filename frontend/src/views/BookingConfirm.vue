@@ -122,7 +122,11 @@ async function onSubmit() {
     const res: any = await bookingApi.create(payload);
     result.value = res && res.data ? res.data : res;
   } catch (e: any) {
-    result.value = { error: e?.message || String(e) };
+    result.value = {
+      error: e?.message || String(e),
+      status: e?.response?.status,
+      response: e?.response?.data,
+    };
   }
 }
 

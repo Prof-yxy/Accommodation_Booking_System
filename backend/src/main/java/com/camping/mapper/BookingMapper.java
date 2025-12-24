@@ -1,6 +1,7 @@
 package com.camping.mapper;
 
 import com.camping.entity.Booking;
+import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
@@ -21,12 +22,15 @@ public interface BookingMapper {
     /**
      * 按用户和状态查询预订
      */
-    List<Booking> selectByUserIdAndStatus(Long userId, Integer status);
+    List<Booking> selectByUserIdAndStatus(@Param("userId") Long userId,
+            @Param("status") Integer status);
 
     /**
      * 查询时间段内的冲突预订
      */
-    List<Booking> selectConflict(Long typeId, String checkIn, String checkOut);
+    List<Booking> selectConflict(@Param("typeId") Long typeId,
+            @Param("checkIn") String checkIn,
+            @Param("checkOut") String checkOut);
 
     /**
      * 插入预订
@@ -37,4 +41,9 @@ public interface BookingMapper {
      * 更新预订
      */
     void update(Booking booking);
+
+    /**
+     * 查询所有预订
+     */
+    List<Booking> selectAll();
 }

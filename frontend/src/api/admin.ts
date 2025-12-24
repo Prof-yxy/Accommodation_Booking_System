@@ -120,30 +120,33 @@ export const adminApi = {
    * 新增装备
    */
   createEquipment: (data: EquipmentEdit) => {
-    return request.post('/admin/equip', data)
+    return request.post('/admin/equipment', data)
   },
 
   /**
    * 修改装备
    */
   updateEquipment: (equipId: number, data: Partial<EquipmentEdit>) => {
-    return request.put(`/admin/equip/${equipId}`, data)
+    return request.put(`/admin/equipment/${equipId}`, data)
   },
 
   /**
    * 删除装备
    */
   deleteEquipment: (equipId: number) => {
-    return request.delete(`/admin/equip/${equipId}`)
+    return request.delete(`/admin/equipment/${equipId}`)
   },
 
   /**
-   * 批量设置日价格
-   * @param priceData 包含多个房型和日期的价格设置
+   * 批量设置日价格（日期范围）
+   * @param typeId 房型ID
+   * @param startDate 开始日期
+   * @param endDate 结束日期
+   * @param price 价格
    * @returns 批量设置结果
    */
-  setDailyPricesBatch: (priceData: PriceSetParams[]) => {
-    return request.post('/admin/price/batch', { priceData })
+  setDailyPricesBatch: (typeId: number, startDate: string, endDate: string, price: number) => {
+    return request.post('/admin/price/batch', { typeId, startDate, endDate, price })
   },
 
   /**
@@ -154,7 +157,7 @@ export const adminApi = {
    */
   getDailyReport: (startDate: string, endDate: string) => {
     return request.get('/admin/report/daily', {
-      params: { start: startDate, end: endDate }
+      params: { startDate, endDate }
     })
   },
 
@@ -166,7 +169,7 @@ export const adminApi = {
    */
   getTypeReport: (startDate: string, endDate: string) => {
     return request.get('/admin/report/type', {
-      params: { start: startDate, end: endDate }
+      params: { startDate, endDate }
     })
   },
 
@@ -249,11 +252,12 @@ export const adminApi = {
 
   /**
    * 获取收益趋势数据
-   * @param days 过去天数 (默认30天)
+   * @param startDate 开始日期 (格式: yyyy-MM-dd)
+   * @param endDate 结束日期 (格式: yyyy-MM-dd)
    * @returns 收益趋势数据
    */
-  getRevenueTrend: (days: number = 30) => {
-    return request.get('/admin/revenue/trend', { params: { days } })
+  getRevenueTrend: (startDate: string, endDate: string) => {
+    return request.get('/admin/revenue/trend', { params: { startDate, endDate } })
   },
 
   /**
@@ -264,20 +268,24 @@ export const adminApi = {
    * @returns 调整结果
    */
   adjustBookingPrice: (bookingId: number, newPrice: number, remark?: string) => {
-    return request.post('/admin/booking/price-adjust', {
-      bookingId,
-      newPrice,
+    return request.put(`/admin/booking/${bookingId}/price`, {
+      price: newPrice,
       remark
     })
   },
 
   /**
    * 查询用户行为记录
-   * @param userId 用户ID
-   * @param limit 记录数量
+   * @param userId 用户ID (可选)
+   * @param page 页码
+   * @param pageSize 每页数量
    * @returns 用户操作记录
    */
-  getUserBehaviorLog: (userId: number, limit: number = 50) => {
-    return request.get(`/admin/user/${userId}/behavior`, { params: { limit } })
+  getUserBehaviorLog: (userId?: number, page: number = 1, pageSize: number = 20) => {
+    const params: any = { page, pageSize }
+    if (userId) {
+      params.userId = userId
+    }
+    return request.get('/admin/logs/user-behavior', { params })
   }
 }

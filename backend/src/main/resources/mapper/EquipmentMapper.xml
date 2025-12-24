@@ -48,4 +48,8 @@
         WHERE equip_id = #{equipId}
     </update>
 
+    <delete id="delete" parameterType="java.lang.Long">
+        DELETE FROM equipments WHERE equip_id = #{equipId}
+    </delete>
+
 </mapper>
