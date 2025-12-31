@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Site types table
 CREATE TABLE IF NOT EXISTS site_types (
     type_id BIGSERIAL PRIMARY KEY,
-    type_name VARCHAR(100) NOT NULL,
+    type_name VARCHAR(100) NOT NULL UNIQUE,
     base_price DECIMAL(10, 2) NOT NULL,
     max_guests INTEGER NOT NULL,
     description TEXT,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 -- Equipment table
 CREATE TABLE IF NOT EXISTS equipments (
     equip_id BIGSERIAL PRIMARY KEY,
-    equip_name VARCHAR(100) NOT NULL,
+    equip_name VARCHAR(100) NOT NULL UNIQUE,
     unit_price DECIMAL(10, 2) NOT NULL,
     total_stock INTEGER NOT NULL,
     category VARCHAR(50),

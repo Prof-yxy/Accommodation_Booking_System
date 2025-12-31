@@ -1,17 +1,18 @@
 import { reactive, readonly } from 'vue'
 
 // 简单全局状态管理（不依赖 Pinia）
+const storedUser = localStorage.getItem('user')
 const state = reactive({
-  user: null as null | { userId: number; username: string; role?: string },
+  user: storedUser ? JSON.parse(storedUser) : null as null | { userId: number; username: string; role?: string },
   token: localStorage.getItem('token') || null
 })
 
 export function setUser(user: { userId: number; username: string; role?: string } | null) {
   state.user = user
   if (!user) {
-    localStorage.removeItem('userId')
+    localStorage.removeItem('user')
   } else {
-    localStorage.setItem('userId', String(user.userId))
+    localStorage.setItem('user', JSON.stringify(user))
   }
 }
 

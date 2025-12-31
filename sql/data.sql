@@ -94,7 +94,7 @@ FROM users u
 JOIN sites s ON s.type_id = 1
 JOIN site_types t ON t.type_id = s.type_id
 WHERE u.username IN ('user1', 'user2')
-AND s.site_id <= 2
+AND s.site_id <= 32
 AND NOT EXISTS (
     SELECT 1 FROM bookings b 
     WHERE b.user_id = u.user_id 

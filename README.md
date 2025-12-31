@@ -60,7 +60,6 @@ camping-system/
 首先修改后端资源文件`backend/src/main/resources/application.yml`，将数据库密码字段改为自己的数据库密码。
 
 ```yaml
-
 ---
 datasource:
   url: jdbc:postgresql://localhost:5432/camping_db
