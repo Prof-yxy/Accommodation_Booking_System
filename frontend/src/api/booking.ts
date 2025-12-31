@@ -26,10 +26,11 @@ export interface BookingCheckResponse {
   msg: string
   totalPrice: number
   priceDetail?: {
-    basePrice: number
     dailyPrices: Array<{ date: string; price: number }>
     equipmentPrice: number
     nights: number
+    mode: string
+    formula?: string
   }
 }
 
@@ -39,6 +40,13 @@ export interface BookingCreateResponse {
   totalPrice: number
   status: number
   quantity: number
+  priceDetail?: {
+    sitePrice: number
+    equipmentPrice: number
+    nights: number
+    mode: string
+    formula?: string
+  }
 }
 
 export interface BookingInfo {

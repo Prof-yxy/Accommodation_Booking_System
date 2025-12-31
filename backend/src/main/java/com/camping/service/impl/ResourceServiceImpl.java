@@ -14,6 +14,7 @@ import com.camping.service.ResourceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -23,6 +24,9 @@ import java.util.*;
  */
 @Service
 public class ResourceServiceImpl implements ResourceService {
+
+    private static final BigDecimal WEEKDAY_RATE = BigDecimal.ONE;
+    private static final BigDecimal WEEKEND_RATE = new BigDecimal("1.15");
 
     @Autowired
     private SiteTypeMapper siteTypeMapper;
@@ -86,9 +90,8 @@ public class ResourceServiceImpl implements ResourceService {
         String tomorrow = LocalDate.now().plusDays(1).format(fmt);
 
         for (SiteType t : types) {
-            // 查询当日浮动价格
-            DailyPrice dp = dailyPriceMapper.selectByTypeAndDate(t.getTypeId(), today);
-            BigDecimal priceToday = (dp != null && dp.getPrice() != null) ? dp.getPrice() : t.getBasePrice();
+            // 查询当日价格（含周末加成/特价）
+            BigDecimal priceToday = resolveDailyPrice(t, today);
 
             // 查询营位总数和可用数
             List<Site> sites = siteMapper.selectByTypeId(t.getTypeId());
@@ -181,7 +184,7 @@ public class ResourceServiceImpl implements ResourceService {
 
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             String dateStr = date.format(fmt);
-            BigDecimal price = priceMap.getOrDefault(dateStr, siteType.getBasePrice());
+            BigDecimal price = priceMap.getOrDefault(dateStr, resolveDailyPrice(siteType, dateStr));
             String nextDay = date.plusDays(1).format(fmt);
             List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, nextDay);
             int available = availableSites != null ? availableSites.size() : totalSites;
@@ -269,5 +272,20 @@ public class ResourceServiceImpl implements ResourceService {
         result.put("description", e.getDescription());
         result.put("status", e.getStatus());
         return result;
+    }
+
+    private boolean isWeekend(LocalDate date) {
+        int day = date.getDayOfWeek().getValue();
+        return day == 6 || day == 7;
+    }
+
+    private BigDecimal resolveDailyPrice(SiteType type, String dateStr) {
+        DailyPrice dp = dailyPriceMapper.selectByTypeAndDate(type.getTypeId(), dateStr);
+        if (dp != null && dp.getPrice() != null) {
+            return dp.getPrice();
+        }
+        LocalDate date = LocalDate.parse(dateStr);
+        BigDecimal factor = isWeekend(date) ? WEEKEND_RATE : WEEKDAY_RATE;
+        return type.getBasePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
     }
 }

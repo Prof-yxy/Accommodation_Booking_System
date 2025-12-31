@@ -1,5 +1,17 @@
 <template>
   <div class="site-list">
+    <section class="controls">
+      <label for="date-select">选择日期：</label>
+      <input
+        id="date-select"
+        type="date"
+        v-model="selectedDate"
+        @change="onDateChange"
+      />
+      <button class="btn" @click="refreshAll">刷新价格与库存</button>
+      <span class="hint">周末价含1.15系数，日营下单再按0.6折算</span>
+    </section>
+
     <section class="block">
       <header class="block__title">房型（当日价格与可用量）</header>
       <div v-if="loadingTypes" class="loading">加载中...</div>
@@ -218,6 +230,7 @@ const types = ref<SiteCard[]>([]);
 const equipments = ref<EquipCard[]>([]);
 const loadingTypes = ref(true);
 const loadingEquipments = ref(true);
+const selectedDate = ref<string>(new Date().toISOString().slice(0, 10));
 
 const normalizeSiteType = (
   raw: Partial<SiteType> & Record<string, any>
@@ -277,18 +290,42 @@ const normalizeEquipment = (
   };
 };
 
-const loadSiteTypes = async () => {
+const loadSiteTypes = async (dateStr: string) => {
   loadingTypes.value = true;
   try {
-    // 优先请求当日列表，后端如未实现则回退普通列表
-    let res;
-    try {
-      res = await (resourceApi as any).getSiteTypesToday?.();
-    } catch (err) {
-      res = await resourceApi.getSiteTypes();
-    }
-    const data = (res?.data ?? []).map(normalizeSiteType);
-    types.value = data.length ? data : fallbackSiteTypes;
+    // 先拿基础房型，再基于所选日期查询日历获取当日价格与库存
+    const baseRes = await resourceApi.getSiteTypes();
+    const baseList: SiteCard[] = (baseRes?.data ?? []).map(normalizeSiteType);
+
+    const calendarResults = await Promise.all(
+      baseList.map(async (t) => {
+        try {
+          const cRes: any = await resourceApi.getCalendar(
+            t.typeId,
+            dateStr,
+            dateStr
+          );
+          const day = cRes?.data?.calendarData?.[0];
+          return { id: t.typeId, day };
+        } catch (err) {
+          return { id: t.typeId, day: null };
+        }
+      })
+    );
+
+    const calendarMap = new Map<number, any>();
+    calendarResults.forEach((item) => calendarMap.set(item.id, item.day));
+
+    const merged = baseList.map((t) => {
+      const day = calendarMap.get(t.typeId);
+      return {
+        ...t,
+        priceToday: day?.price ?? t.priceToday ?? t.basePrice,
+        availableSites: day?.stock ?? t.availableSites,
+      };
+    });
+
+    types.value = merged.length ? merged : fallbackSiteTypes;
   } catch (error) {
     types.value = fallbackSiteTypes;
   } finally {
@@ -296,18 +333,34 @@ const loadSiteTypes = async () => {
   }
 };
 
-const loadEquipments = async () => {
+const loadEquipments = async (dateStr: string) => {
   loadingEquipments.value = true;
   try {
-    // 优先请求当日库存，后端如未实现则回退普通列表
-    let res;
-    try {
-      res = await (resourceApi as any).getEquipmentsToday?.();
-    } catch (err) {
-      res = await resourceApi.getEquipments();
-    }
+    const res = await resourceApi.getEquipments();
     const data = (res?.data ?? []).map(normalizeEquipment);
-    equipments.value = data.length ? data : fallbackEquipments;
+
+    const withAvailability = await Promise.all(
+      data.map(async (equip) => {
+        try {
+          const avail: any = await resourceApi.queryAvailability(
+            "equip",
+            equip.equipId,
+            dateStr,
+            dateStr
+          );
+          const remaining = Number(
+            avail?.data?.remaining ?? equip.availableStock
+          );
+          return { ...equip, availableStock: remaining };
+        } catch (err) {
+          return equip;
+        }
+      })
+    );
+
+    equipments.value = withAvailability.length
+      ? withAvailability
+      : fallbackEquipments;
   } catch (error) {
     equipments.value = fallbackEquipments;
   } finally {
@@ -320,9 +373,18 @@ function formatPrice(val: any) {
   return Number(val).toFixed(2);
 }
 
+const refreshAll = () => {
+  const date = selectedDate.value || new Date().toISOString().slice(0, 10);
+  loadSiteTypes(date);
+  loadEquipments(date);
+};
+
+const onDateChange = () => {
+  refreshAll();
+};
+
 onMounted(() => {
-  loadSiteTypes();
-  loadEquipments();
+  refreshAll();
 });
 </script>
 
@@ -331,6 +393,34 @@ onMounted(() => {
   display: grid;
   gap: 24px;
   padding: 16px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.controls .hint {
+  color: #475569;
+  font-size: 13px;
+}
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.loading {
+  padding: 12px;
+  color: #555;
 }
 
 .block {

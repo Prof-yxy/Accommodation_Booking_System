@@ -1,20 +1,11 @@
 <template>
   <div class="booking-confirm">
-    <h2>预订（演示）</h2>
+    <h2>预订（房型 + 可选装备）</h2>
 
     <form @submit.prevent="onSubmit">
-      <!-- 1. 选择资源种类 -->
+      <!-- 1. 选择房型 -->
       <div class="row">
-        <label>资源种类：</label>
-        <select v-model="kind" required>
-          <option value="site">房型</option>
-          <option value="equip">装备</option>
-        </select>
-      </div>
-
-      <!-- 2. 选择具体类型（房型/装备） -->
-      <div class="row">
-        <label>资源类型：</label>
+        <label>房型：</label>
         <select v-model.number="selectedTypeId" required>
           <option
             v-for="opt in typeOptions"
@@ -26,7 +17,7 @@
         </select>
       </div>
 
-      <!-- 3/4. 入住与离店日期 -->
+      <!-- 2. 入住与离店日期 -->
       <div class="row">
         <label>入住日期：</label>
         <input v-model="checkIn" type="date" required />
@@ -45,7 +36,50 @@
         <span v-else class="hint">请先查询</span>
       </div>
 
-      <!-- 5. 选择预订数量 -->
+      <!-- 设备选择（可选） -->
+      <div class="equipment-block">
+        <div class="equipment-header">
+          <span>可选装备（可多选，0 表示不租）</span>
+          <button type="button" class="btn-ghost" @click="resetEquipments">
+            全部清零
+          </button>
+        </div>
+        <div class="equipment-list">
+          <div
+            class="equip-item"
+            v-for="equip in equipments"
+            :key="equip.equipId"
+          >
+            <div class="equip-main">
+              <div class="equip-name">{{ equip.equipName }}</div>
+              <div class="equip-meta">
+                ￥{{ formatPrice(equip.unitPrice) }} /天 · 库存:
+                {{ equip.totalStock ?? "?" }}
+              </div>
+              <div class="equip-desc">{{ equip.description || "" }}</div>
+            </div>
+            <div class="equip-actions">
+              <input
+                type="number"
+                min="0"
+                :max="equip.totalStock || 99"
+                v-model.number="equip.count"
+              />
+              <span
+                class="equip-subtotal"
+                v-if="equip.count && equip.count > 0"
+              >
+                小计：￥{{
+                  formatPrice(equip.unitPrice * equip.count * nightsEstimate)
+                }}
+              </span>
+            </div>
+          </div>
+          <div v-if="!equipments.length" class="hint">无装备数据</div>
+        </div>
+      </div>
+
+      <!-- 3. 选择预订数量 -->
       <div class="row">
         <label>预订数量：</label>
         <select
@@ -56,12 +90,15 @@
             {{ n }}
           </option>
         </select>
-        <span v-if="remainingInfo && remainingInfo.remaining === 0" class="warn"
-          >当前资源无剩余</span
+        <span
+          v-if="remainingInfo && remainingInfo.remaining === 0"
+          class="warn"
         >
+          当前资源无剩余
+        </span>
       </div>
 
-      <!-- 联系人信息（简化） -->
+      <!-- 4. 联系人信息 -->
       <div class="row">
         <label>联系人姓名：</label>
         <input v-model="guestName" type="text" required />
@@ -71,7 +108,7 @@
         <input v-model="guestPhone" type="text" required />
       </div>
 
-      <!-- 6. 提交 -->
+      <!-- 5. 提交 -->
       <div class="form-actions">
         <button type="submit" :disabled="!canSubmit">提交预订单</button>
       </div>
@@ -87,17 +124,18 @@
       </p>
       <p v-if="result.quantity">数量：{{ result.quantity }}</p>
       <p v-if="result.totalPrice">总价：{{ result.totalPrice }}</p>
+      <p v-if="result.priceDetail?.formula" class="formula">
+        价格计算：{{ result.priceDetail.formula }}
+      </p>
       <pre>{{ result }}</pre>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { bookingApi, resourceApi } from "@/api";
-import { computed, watch } from "vue";
 
-const kind = ref<"site" | "equip">("site");
 const selectedTypeId = ref<number | null>(null);
 const checkIn = ref("");
 const checkOut = ref("");
@@ -108,6 +146,17 @@ const remainingInfo = ref<{ remaining: number; total: number } | null>(null);
 const quantity = ref<number>(1);
 const quantityOptions = ref<number[]>([]);
 const typeOptions = ref<Array<{ value: number; label: string }>>([]);
+const equipments = ref<Array<any>>([]);
+const nightsEstimate = computed(() => {
+  if (!checkIn.value || !checkOut.value) return 1;
+  const start = new Date(checkIn.value);
+  const end = new Date(checkOut.value);
+  const diff = Math.max(
+    1,
+    Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24))
+  );
+  return diff;
+});
 
 async function onSubmit() {
   try {
@@ -115,14 +164,14 @@ async function onSubmit() {
       result.value = { error: "请先查询并选择有效数量" };
       return;
     }
+    const equipsPayload = equipments.value
+      .filter((e) => e.count && e.count > 0)
+      .map((e) => ({ equipId: e.equipId, count: e.count }));
     const payload = {
       typeId: selectedTypeId.value,
       checkIn: checkIn.value,
       checkOut: checkOut.value,
-      equipments:
-        kind.value === "equip"
-          ? [{ equipId: selectedTypeId.value, count: quantity.value }]
-          : [],
+      equipments: equipsPayload,
       quantity: quantity.value,
       userId: parseInt(localStorage.getItem("userId") || "1"),
       guestName: guestName.value,
@@ -150,7 +199,7 @@ async function onQuery() {
   }
   try {
     const res: any = await resourceApi.queryAvailability(
-      kind.value,
+      "site",
       selectedTypeId.value,
       checkIn.value,
       checkOut.value
@@ -183,7 +232,6 @@ const canSubmit = computed(() => {
 });
 
 onMounted(async () => {
-  // 载入房型与装备作为选项（在后端不可用时也提供回退）
   const fallbackTypes = [
     { value: 1, label: "湖景標准營位" },
     { value: 2, label: "森林豪華營位" },
@@ -191,67 +239,45 @@ onMounted(async () => {
     { value: 4, label: "全套接駁房車位" },
     { value: 5, label: "輕奢鈴鐺帳" },
   ];
-  const fallbackEquips = [
-    { value: 1, label: "羽絨睡袋" },
-    { value: 2, label: "自充氣防潮墊" },
-    { value: 3, label: "鈦合金炊煮套裝" },
-    { value: 4, label: "雙口瓦斯爐" },
-    { value: 5, label: "可折疊桌椅組" },
-    { value: 6, label: "LED氛圍燈串" },
-    { value: 7, label: "便攜保溫冰箱" },
-    { value: 8, label: "戶外咖啡組" },
-  ];
-
   try {
-    const results = await Promise.allSettled([
+    const [typesRes, equipsRes]: any = await Promise.all([
       resourceApi.getSiteTypes(),
       resourceApi.getEquipments(),
     ]);
-    const typesRes =
-      results[0].status === "fulfilled"
-        ? (results[0] as PromiseFulfilledResult<any>).value
-        : null;
-    const equipsRes =
-      results[1].status === "fulfilled"
-        ? (results[1] as PromiseFulfilledResult<any>).value
-        : null;
-
     const typeList = (typesRes?.data || []).map((t: any) => ({
       value: Number(t.typeId || t.id),
       label: String(t.typeName || t.name || "房型"),
     }));
-    const equipList = (equipsRes?.data || []).map((e: any) => ({
-      value: Number(e.equipId || e.id),
-      label: String(e.equipName || e.name || "装备"),
+    typeOptions.value = typeList.length ? typeList : fallbackTypes;
+
+    equipments.value = (equipsRes?.data || []).map((e: any) => ({
+      equipId: Number(e.equipId || e.id),
+      equipName: e.equipName || e.name,
+      unitPrice: Number(e.unitPrice || e.price || 0),
+      totalStock: e.totalStock,
+      description: e.description,
+      count: 0,
     }));
-
-    const finalTypes = typeList.length ? typeList : fallbackTypes;
-    const finalEquips = equipList.length ? equipList : fallbackEquips;
-
-    typeOptions.value = kind.value === "site" ? finalTypes : finalEquips;
-
-    watch(kind, (k) => {
-      typeOptions.value = k === "site" ? finalTypes : finalEquips;
-      selectedTypeId.value = null;
-      remainingInfo.value = null;
-      quantityOptions.value = [];
-      quantity.value = 1;
-    });
-  } catch {
-    // 任一异常时直接使用回退选项
-    typeOptions.value = kind.value === "site" ? fallbackTypes : fallbackEquips;
-    watch(kind, (k) => {
-      typeOptions.value = k === "site" ? fallbackTypes : fallbackEquips;
-      selectedTypeId.value = null;
-      remainingInfo.value = null;
-      quantityOptions.value = [];
-      quantity.value = 1;
-    });
+  } catch (err) {
+    typeOptions.value = fallbackTypes;
+    equipments.value = [];
   }
 });
+
+function resetEquipments() {
+  equipments.value = equipments.value.map((e) => ({ ...e, count: 0 }));
+}
+
+function formatPrice(val: any) {
+  if (val === undefined || val === null || Number.isNaN(val)) return "-";
+  return Number(val).toFixed(2);
+}
 </script>
 
 <style scoped>
+.booking-confirm {
+  padding: 16px;
+}
 .booking-confirm form > .row {
   margin: 8px 0;
   display: flex;
@@ -276,5 +302,71 @@ onMounted(async () => {
   background: #f8f8f8;
   padding: 10px;
   border-radius: 4px;
+}
+.formula {
+  color: #2563eb;
+  margin: 6px 0;
+}
+.equipment-block {
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fafafa;
+}
+.equipment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.equipment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.equip-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+.equip-main {
+  flex: 1;
+}
+.equip-name {
+  font-weight: 600;
+}
+.equip-meta {
+  color: #6b7280;
+  font-size: 13px;
+}
+.equip-desc {
+  color: #475569;
+  font-size: 13px;
+}
+.equip-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  min-width: 160px;
+}
+.equip-actions input {
+  width: 80px;
+}
+.equip-subtotal {
+  color: #ea580c;
+  font-weight: 600;
+}
+.btn-ghost {
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
 }
 </style>

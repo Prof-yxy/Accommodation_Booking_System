@@ -62,7 +62,7 @@ public class BookingServiceImpl implements BookingService {
 
             if (siteType == null) {
                 result.put("isAvailable", false);
-                result.put("msg", "房型不存在");
+                result.put("msg", "当前仅支持先选择房型，再附加装备下单（不支持仅装备预订）");
                 return result;
             }
 
@@ -73,20 +73,26 @@ public class BookingServiceImpl implements BookingService {
 
             // 3. 查询日价格并累计
             List<Map<String, Object>> priceDetail = new ArrayList<>();
-            BigDecimal sitePrice = BigDecimal.ZERO;
+            List<String> siteTerms = new ArrayList<>();
+            BigDecimal sitePriceBeforeMode = BigDecimal.ZERO;
 
             for (LocalDate date = startDate; date.isBefore(endExclusive); date = date.plusDays(1)) {
-                String dateStr = date.format(DateTimeFormatter.ISO_DATE);
-                BigDecimal dayPrice = computeDailySitePrice(siteType, dto.getTypeId(), dateStr);
-                sitePrice = sitePrice.add(dayPrice);
+                DayPriceInfo dpi = resolveDayPriceInfo(siteType, dto.getTypeId(), date);
+                sitePriceBeforeMode = sitePriceBeforeMode.add(dpi.price);
 
                 Map<String, Object> dayDetail = new LinkedHashMap<>();
-                dayDetail.put("date", dateStr);
-                dayDetail.put("price", dayPrice);
-                dayDetail.put("weekend", isWeekend(date));
+                dayDetail.put("date", dpi.date);
+                dayDetail.put("price", dpi.price);
+                dayDetail.put("weekend", dpi.weekend);
+                dayDetail.put("specialPrice", dpi.specialPrice);
                 priceDetail.add(dayDetail);
+
+                String term = dpi.date + ":" + dpi.price
+                        + (dpi.specialPrice ? "(特价)" : (dpi.weekend ? "(周末1.15x基础)" : "(工作日1.0x基础)"));
+                siteTerms.add(term);
             }
 
+            BigDecimal sitePrice = sitePriceBeforeMode;
             if (isDayPass) {
                 sitePrice = sitePrice.multiply(DAYPASS_RATE).setScale(2, RoundingMode.HALF_UP);
             }
@@ -98,6 +104,7 @@ public class BookingServiceImpl implements BookingService {
 
             // 5. 计算装备价格并检查库存
             BigDecimal equipmentPrice = BigDecimal.ZERO;
+            List<String> equipTerms = new ArrayList<>();
             boolean equipAvailable = true;
 
             if (dto.getEquipments() != null && !dto.getEquipments().isEmpty()) {
@@ -109,6 +116,8 @@ public class BookingServiceImpl implements BookingService {
                                 .multiply(new BigDecimal(equip.getCount()))
                                 .multiply(new BigDecimal(nights));
                         equipmentPrice = equipmentPrice.add(equipCost);
+                        equipTerms.add(String.format("%s %.2f x %d x %d = %.2f", equipment.getEquipName(),
+                                equipment.getUnitPrice(), equip.getCount(), nights, equipCost));
 
                         // 检查库存
                         Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(
@@ -139,6 +148,22 @@ public class BookingServiceImpl implements BookingService {
             priceDetailMap.put("equipmentPrice", equipmentPrice);
             priceDetailMap.put("nights", nights);
             priceDetailMap.put("mode", isDayPass ? "daypass" : "overnight");
+
+            StringBuilder formula = new StringBuilder();
+            formula.append("房型: ").append(String.join(" + ", siteTerms))
+                    .append(" = ").append(sitePriceBeforeMode.setScale(2, RoundingMode.HALF_UP));
+            if (isDayPass) {
+                formula.append(" × 日营系数0.60 = ").append(sitePrice);
+            }
+            if (!equipTerms.isEmpty()) {
+                formula.append("；装备: ").append(String.join(" + ", equipTerms))
+                        .append(" = ").append(equipmentPrice.setScale(2, RoundingMode.HALF_UP));
+            }
+            formula.append("；总价 = 房型(").append(sitePrice.setScale(2, RoundingMode.HALF_UP))
+                    .append(") + 装备(").append(equipmentPrice.setScale(2, RoundingMode.HALF_UP))
+                    .append(") = ").append(totalPrice.setScale(2, RoundingMode.HALF_UP));
+            priceDetailMap.put("formula", formula.toString());
+
             result.put("priceDetail", priceDetailMap);
 
             return result;
@@ -173,7 +198,7 @@ public class BookingServiceImpl implements BookingService {
             // 2. 查询房型
             SiteType siteType = siteTypeMapper.selectById(dto.getTypeId());
             if (siteType == null) {
-                throw new Exception("房型不存在");
+                throw new Exception("当前仅支持先选择房型，再附加装备下单（不支持仅装备预订）");
             }
 
             boolean isDayPass = isDayPass(dto.getCheckIn(), dto.getCheckOut());
@@ -208,19 +233,23 @@ public class BookingServiceImpl implements BookingService {
             }
 
             // 5. 价格计算 (服务端计算，不信任前端传来的价格)
-            BigDecimal sitePrice = BigDecimal.ZERO;
-
+            BigDecimal sitePriceBeforeMode = BigDecimal.ZERO;
+            List<String> siteTerms = new ArrayList<>();
             for (LocalDate date = startDate; date.isBefore(endExclusive); date = date.plusDays(1)) {
-                String dateStr = date.format(DateTimeFormatter.ISO_DATE);
-                BigDecimal dayPrice = computeDailySitePrice(siteType, dto.getTypeId(), dateStr);
-                sitePrice = sitePrice.add(dayPrice);
+                DayPriceInfo dpi = resolveDayPriceInfo(siteType, dto.getTypeId(), date);
+                sitePriceBeforeMode = sitePriceBeforeMode.add(dpi.price);
+                String term = dpi.date + ":" + dpi.price
+                        + (dpi.specialPrice ? "(特价)" : (dpi.weekend ? "(周末1.15x基础)" : "(工作日1.0x基础)"));
+                siteTerms.add(term);
             }
 
+            BigDecimal sitePrice = sitePriceBeforeMode;
             if (isDayPass) {
                 sitePrice = sitePrice.multiply(DAYPASS_RATE).setScale(2, RoundingMode.HALF_UP);
             }
 
             BigDecimal equipmentPrice = BigDecimal.ZERO;
+            List<String> equipTerms = new ArrayList<>();
             if (dto.getEquipments() != null && !dto.getEquipments().isEmpty()) {
                 for (EquipSelectDTO equip : dto.getEquipments()) {
                     Equipment equipment = equipmentMapper.selectById(equip.getEquipId());
@@ -229,6 +258,8 @@ public class BookingServiceImpl implements BookingService {
                                 .multiply(new BigDecimal(equip.getCount()))
                                 .multiply(new BigDecimal(nights));
                         equipmentPrice = equipmentPrice.add(equipCost);
+                        equipTerms.add(String.format("%s %.2f x %d x %d = %.2f", equipment.getEquipName(),
+                                equipment.getUnitPrice(), equip.getCount(), nights, equipCost));
                     }
                 }
             }
@@ -278,6 +309,28 @@ public class BookingServiceImpl implements BookingService {
             result.put("totalPrice", totalPrice);
             result.put("status", 0);
             result.put("quantity", quantity);
+
+            Map<String, Object> priceDetailMap = new LinkedHashMap<>();
+            priceDetailMap.put("sitePrice", sitePrice);
+            priceDetailMap.put("equipmentPrice", equipmentPrice);
+            priceDetailMap.put("nights", nights);
+            priceDetailMap.put("mode", isDayPass ? "daypass" : "overnight");
+
+            StringBuilder formula = new StringBuilder();
+            formula.append("房型: ").append(String.join(" + ", siteTerms))
+                    .append(" = ").append(sitePriceBeforeMode.setScale(2, RoundingMode.HALF_UP));
+            if (isDayPass) {
+                formula.append(" × 日营系数0.60 = ").append(sitePrice);
+            }
+            if (!equipTerms.isEmpty()) {
+                formula.append("；装备: ").append(String.join(" + ", equipTerms))
+                        .append(" = ").append(equipmentPrice.setScale(2, RoundingMode.HALF_UP));
+            }
+            formula.append("；总价 = 房型(").append(sitePrice.setScale(2, RoundingMode.HALF_UP))
+                    .append(") + 装备(").append(equipmentPrice.setScale(2, RoundingMode.HALF_UP))
+                    .append(") = ").append(totalPrice.setScale(2, RoundingMode.HALF_UP));
+            priceDetailMap.put("formula", formula.toString());
+            result.put("priceDetail", priceDetailMap);
 
             return result;
 
@@ -436,12 +489,31 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private BigDecimal computeDailySitePrice(SiteType siteType, Long typeId, String dateStr) {
+        return resolveDayPriceInfo(siteType, typeId, LocalDate.parse(dateStr)).price;
+    }
+
+    private DayPriceInfo resolveDayPriceInfo(SiteType siteType, Long typeId, LocalDate date) {
+        String dateStr = date.format(DateTimeFormatter.ISO_DATE);
         DailyPrice dailyPrice = dailyPriceMapper.selectByTypeAndDate(typeId, dateStr);
         if (dailyPrice != null && dailyPrice.getPrice() != null) {
-            return dailyPrice.getPrice();
+            return new DayPriceInfo(dateStr, dailyPrice.getPrice(), isWeekend(date), true);
         }
-        LocalDate date = LocalDate.parse(dateStr);
         BigDecimal factor = isWeekend(date) ? WEEKEND_RATE : WEEKDAY_RATE;
-        return siteType.getBasePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal price = siteType.getBasePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
+        return new DayPriceInfo(dateStr, price, isWeekend(date), false);
+    }
+
+    private static class DayPriceInfo {
+        final String date;
+        final BigDecimal price;
+        final boolean weekend;
+        final boolean specialPrice;
+
+        DayPriceInfo(String date, BigDecimal price, boolean weekend, boolean specialPrice) {
+            this.date = date;
+            this.price = price;
+            this.weekend = weekend;
+            this.specialPrice = specialPrice;
+        }
     }
 }
