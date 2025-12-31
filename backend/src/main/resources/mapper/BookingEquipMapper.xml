@@ -21,7 +21,11 @@
         JOIN bookings b ON be.booking_id = b.booking_id
         WHERE be.equip_id = #{equipId}
         AND b.status IN (0, 1)
-        AND NOT (b.check_out &lt;= CAST(#{checkIn} AS DATE) OR b.check_in &gt;= CAST(#{checkOut} AS DATE))
+        AND NOT (
+            (CASE WHEN b.check_out = b.check_in THEN b.check_out + INTERVAL '1 day' ELSE b.check_out END)
+                &lt;= CAST(#{checkIn} AS DATE)
+            OR b.check_in &gt;= CAST(#{checkOut} AS DATE)
+        )
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.BookingEquip" useGeneratedKeys="true" keyProperty="bookingEquipId">
@@ -32,6 +36,10 @@
     <delete id="deleteByBookingId" parameterType="java.lang.Long">
         DELETE FROM booking_equips
         WHERE booking_id = #{bookingId}
+    </delete>
+
+    <delete id="deleteAll">
+        DELETE FROM booking_equips
     </delete>
 
 </mapper>

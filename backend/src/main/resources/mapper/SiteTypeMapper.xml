@@ -25,6 +25,13 @@
         WHERE type_id = #{typeId} AND status = 1
     </select>
 
+    <select id="selectByName" parameterType="java.lang.String" resultMap="SiteTypeResultMap">
+        SELECT type_id, type_name, base_price, max_guests, description, image_url, status
+        FROM site_types
+        WHERE type_name = #{typeName}
+        LIMIT 1
+    </select>
+
     <insert id="insert" parameterType="com.camping.entity.SiteType" useGeneratedKeys="true" keyProperty="typeId">
         INSERT INTO site_types (type_name, base_price, max_guests, description, image_url, status)
         VALUES (#{typeName}, #{basePrice}, #{maxGuests}, #{description}, #{imageUrl}, #{status})
@@ -43,6 +50,10 @@
 
     <delete id="delete" parameterType="java.lang.Long">
         DELETE FROM site_types WHERE type_id = #{typeId}
+    </delete>
+
+    <delete id="deleteAll">
+        DELETE FROM site_types
     </delete>
 
 </mapper>

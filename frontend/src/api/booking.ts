@@ -16,6 +16,7 @@ export interface BookingCheckParams {
 
 export interface BookingCreateParams extends BookingCheckParams {
   userId: number
+  quantity?: number
   guestName: string
   guestPhone: string
 }
@@ -33,10 +34,11 @@ export interface BookingCheckResponse {
 }
 
 export interface BookingCreateResponse {
-  bookingId: number
-  siteNo: string
+  bookingIds: number[]
+  siteNos: string[]
   totalPrice: number
   status: number
+  quantity: number
 }
 
 export interface BookingInfo {
@@ -44,15 +46,16 @@ export interface BookingInfo {
   userId: number
   typeId: number
   siteNo: string
+  typeName?: string
   checkIn: string
   checkOut: string
   guestName: string
   guestPhone: string
   totalPrice: number
-  status: number // 0: 待支付, 1: 已支付, 2: 已取消
+  status: number // 0: 待支付, 1: 已完成, 2: 已取消
   createTime: string
   updateTime: string
-  equipments?: Array<{
+  equipments?: string | Array<{
     equipId: number
     equipName: string
     count: number
@@ -110,6 +113,13 @@ export const bookingApi = {
   },
 
   /**
+   * 管理员：获取全部订单列表
+   */
+  getAll: () => {
+    return request.get('/booking/all')
+  },
+
+  /**
    * 获取订单详情
    * @param bookingId 订单ID
    * @returns 订单详细信息
@@ -134,5 +144,12 @@ export const bookingApi = {
    */
   getEquipments: (bookingId: number) => {
     return request.get(`/booking/${bookingId}/equipments`)
+  },
+
+  /**
+   * 管理员/客服提前结束订单（释放资源）
+   */
+  end: (bookingId: number) => {
+    return request.post('/booking/end', { bookingId })
   }
 }

@@ -19,6 +19,11 @@ public interface EquipmentMapper {
     Equipment selectById(Long equipId);
 
     /**
+     * 按名称查询
+     */
+    Equipment selectByName(String equipName);
+
+    /**
      * 按分类查询装备
      */
     List<Equipment> selectByCategory(String category);
@@ -37,4 +42,7 @@ public interface EquipmentMapper {
      * 删除装备
      */
     void delete(Long equipId);
+
+    /** 删除全部装备 */
+    void deleteAll();
 }

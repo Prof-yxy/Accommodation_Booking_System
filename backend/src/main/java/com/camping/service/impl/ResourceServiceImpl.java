@@ -49,13 +49,15 @@ public class ResourceServiceImpl implements ResourceService {
     public List<Object> getSiteTypes() throws Exception {
         List<SiteType> types = siteTypeMapper.selectAll();
         List<Object> result = new ArrayList<>();
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
+        String today = LocalDate.now().format(fmt);
+        String tomorrow = LocalDate.now().plusDays(1).format(fmt);
 
         for (SiteType t : types) {
             List<Site> sites = siteMapper.selectByTypeId(t.getTypeId());
             int totalSites = sites.size();
             // 查询今天可用营位数
-            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, today);
+            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, tomorrow);
             int available = availableSites != null ? availableSites.size() : totalSites;
 
             Map<String, Object> item = new LinkedHashMap<>();
@@ -79,7 +81,9 @@ public class ResourceServiceImpl implements ResourceService {
     public List<Object> getSiteTypesToday() throws Exception {
         List<SiteType> types = siteTypeMapper.selectAll();
         List<Object> result = new ArrayList<>();
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
+        String today = LocalDate.now().format(fmt);
+        String tomorrow = LocalDate.now().plusDays(1).format(fmt);
 
         for (SiteType t : types) {
             // 查询当日浮动价格
@@ -89,7 +93,7 @@ public class ResourceServiceImpl implements ResourceService {
             // 查询营位总数和可用数
             List<Site> sites = siteMapper.selectByTypeId(t.getTypeId());
             int totalSites = sites.size();
-            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, today);
+            List<Site> availableSites = siteMapper.selectAvailable(t.getTypeId(), today, tomorrow);
             int available = availableSites != null ? availableSites.size() : totalSites;
 
             Map<String, Object> item = new LinkedHashMap<>();
@@ -121,10 +125,12 @@ public class ResourceServiceImpl implements ResourceService {
             throw new Exception("房型不存在");
         }
 
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
+        String today = LocalDate.now().format(fmt);
+        String tomorrow = LocalDate.now().plusDays(1).format(fmt);
         List<Site> sites = siteMapper.selectByTypeId(typeId);
         int totalSites = sites.size();
-        List<Site> availableSites = siteMapper.selectAvailable(typeId, today, today);
+        List<Site> availableSites = siteMapper.selectAvailable(typeId, today, tomorrow);
         int available = availableSites != null ? availableSites.size() : totalSites;
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -176,7 +182,8 @@ public class ResourceServiceImpl implements ResourceService {
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             String dateStr = date.format(fmt);
             BigDecimal price = priceMap.getOrDefault(dateStr, siteType.getBasePrice());
-            List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, dateStr);
+            String nextDay = date.plusDays(1).format(fmt);
+            List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, nextDay);
             int available = availableSites != null ? availableSites.size() : totalSites;
 
             Map<String, Object> dayData = new LinkedHashMap<>();
@@ -202,11 +209,13 @@ public class ResourceServiceImpl implements ResourceService {
     public List<Object> getEquipments() throws Exception {
         List<Equipment> equipments = equipmentMapper.selectAll();
         List<Object> result = new ArrayList<>();
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
+        String today = LocalDate.now().format(fmt);
+        String tomorrow = LocalDate.now().plusDays(1).format(fmt);
 
         for (Equipment e : equipments) {
             // 计算当日已预订数量
-            Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(e.getEquipId(), today, today);
+            Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(e.getEquipId(), today, tomorrow);
             int used = usedCount != null ? usedCount : 0;
             int available = (e.getTotalStock() != null ? e.getTotalStock() : 0) - used;
 

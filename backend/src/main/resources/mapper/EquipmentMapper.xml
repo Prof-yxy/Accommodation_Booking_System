@@ -25,6 +25,13 @@
         WHERE equip_id = #{equipId} AND status = 1
     </select>
 
+    <select id="selectByName" parameterType="java.lang.String" resultMap="EquipmentResultMap">
+        SELECT equip_id, equip_name, unit_price, total_stock, category, description, status
+        FROM equipments
+        WHERE equip_name = #{equipName}
+        LIMIT 1
+    </select>
+
     <select id="selectByCategory" parameterType="java.lang.String" resultMap="EquipmentResultMap">
         SELECT equip_id, equip_name, unit_price, total_stock, category, description, status
         FROM equipments
@@ -50,6 +57,10 @@
 
     <delete id="delete" parameterType="java.lang.Long">
         DELETE FROM equipments WHERE equip_id = #{equipId}
+    </delete>
+
+    <delete id="deleteAll">
+        DELETE FROM equipments
     </delete>
 
 </mapper>

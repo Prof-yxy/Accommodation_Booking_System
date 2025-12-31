@@ -11,6 +11,7 @@ public class BookingCreateDTO {
     private String checkIn;
     private String checkOut;
     private List<EquipSelectDTO> equipments;
+    private Integer quantity;
     private String guestName;
     private String guestPhone;
 
@@ -55,6 +56,14 @@ public class BookingCreateDTO {
 
     public void setEquipments(List<EquipSelectDTO> equipments) {
         this.equipments = equipments;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
     }
 
     public String getGuestName() {

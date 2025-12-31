@@ -24,6 +24,13 @@
         WHERE site_id = #{siteId}
     </select>
 
+    <select id="selectByTypeAndNo" parameterType="java.util.Map" resultMap="SiteResultMap">
+        SELECT site_id, type_id, site_no, status, create_time, update_time
+        FROM sites
+        WHERE type_id = #{typeId} AND site_no = #{siteNo}
+        LIMIT 1
+    </select>
+
     <select id="selectAvailable" parameterType="java.util.Map" resultMap="SiteResultMap">
         SELECT s.site_id, s.type_id, s.site_no, s.status, s.create_time, s.update_time
         FROM sites s
@@ -34,7 +41,11 @@
             FROM bookings b
             WHERE b.type_id = #{typeId}
             AND b.status IN (0, 1)
-            AND NOT (b.check_out &lt;= CAST(#{checkIn} AS DATE) OR b.check_in &gt;= CAST(#{checkOut} AS DATE))
+            AND NOT (
+                (CASE WHEN b.check_out = b.check_in THEN b.check_out + INTERVAL '1 day' ELSE b.check_out END)
+                    &lt;= CAST(#{checkIn} AS DATE)
+                OR b.check_in &gt;= CAST(#{checkOut} AS DATE)
+            )
         )
         ORDER BY s.site_no
     </select>
@@ -52,5 +63,9 @@
             update_time = #{updateTime}
         WHERE site_id = #{siteId}
     </update>
+
+    <delete id="deleteAll">
+        DELETE FROM sites
+    </delete>
 
 </mapper>

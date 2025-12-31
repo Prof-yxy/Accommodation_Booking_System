@@ -287,5 +287,12 @@ export const adminApi = {
       params.userId = userId
     }
     return request.get('/admin/logs/user-behavior', { params })
+  },
+
+  /**
+   * 重置房型、营位和装备到默认数据
+   */
+  resetResources: () => {
+    return request.post('/admin/reset-resources')
   }
 }

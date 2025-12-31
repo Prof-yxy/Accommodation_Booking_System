@@ -6,6 +6,7 @@ import com.camping.entity.*;
 import com.camping.mapper.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,7 +37,80 @@ public class AdminController {
     private BookingMapper bookingMapper;
 
     @Autowired
+    private BookingEquipMapper bookingEquipMapper;
+
+    @Autowired
     private OperationLogMapper operationLogMapper;
+
+    /**
+     * 一键重置房型、营位与装备到默认数据
+     */
+    @PostMapping("/reset-resources")
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Object> resetResources() {
+        try {
+            // 清空订单及关联，避免外键约束
+            bookingEquipMapper.deleteAll();
+            bookingMapper.deleteAll();
+
+            // 清空定价、营位、房型、装备
+            dailyPriceMapper.deleteAll();
+            siteMapper.deleteAll();
+            siteTypeMapper.deleteAll();
+            equipmentMapper.deleteAll();
+
+            LocalDateTime now = LocalDateTime.now();
+
+            // 默认房型
+            List<SiteType> defaults = List.of(
+                    buildSiteType("湖景標准營位", new BigDecimal("320"), 4, now),
+                    buildSiteType("森林豪華營位", new BigDecimal("380"), 4, now),
+                    buildSiteType("星空A字小屋", new BigDecimal("560"), 3, now),
+                    buildSiteType("全套接駁房車位", new BigDecimal("620"), 4, now),
+                    buildSiteType("輕奢鈴鐺帳", new BigDecimal("480"), 3, now));
+
+            Map<String, Long> typeIdMap = new LinkedHashMap<>();
+            int siteCount = 0;
+            for (int i = 0; i < defaults.size(); i++) {
+                SiteType type = defaults.get(i);
+                siteTypeMapper.insert(type);
+                typeIdMap.put(type.getTypeName(), type.getTypeId());
+
+                // 为每个房型生成 5 个营位
+                for (int j = 1; j <= 5; j++) {
+                    Site site = new Site();
+                    site.setTypeId(type.getTypeId());
+                    site.setSiteNo(String.format("%02d-%03d", (i + 1), j));
+                    site.setStatus(1);
+                    site.setCreateTime(now);
+                    site.setUpdateTime(now);
+                    siteMapper.insert(site);
+                    siteCount++;
+                }
+            }
+
+            // 默认装备
+            List<Equipment> equipments = List.of(
+                    buildEquip("便攜保溫冰箱", new BigDecimal("80"), 15, now),
+                    buildEquip("鈦合金炊煮套裝", new BigDecimal("60"), 20, now),
+                    buildEquip("雙口瓦斯爐", new BigDecimal("90"), 12, now),
+                    buildEquip("戶外咖啡組", new BigDecimal("50"), 18, now),
+                    buildEquip("羽絨睡袋", new BigDecimal("55"), 30, now),
+                    buildEquip("自充氣防潮墊", new BigDecimal("40"), 30, now),
+                    buildEquip("可折疊桌椅組", new BigDecimal("45"), 25, now),
+                    buildEquip("LED氛圍燈串", new BigDecimal("25"), 40, now));
+
+            equipments.forEach(equipmentMapper::insert);
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("siteTypes", typeIdMap.size());
+            data.put("sites", siteCount);
+            data.put("equipments", equipments.size());
+            return Result.success(data);
+        } catch (Exception e) {
+            return Result.error("重置资源失败: " + e.getMessage());
+        }
+    }
 
     /**
      * Set daily price for multiple dates
@@ -118,7 +192,7 @@ public class AdminController {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 2) {
+                    if (booking.getStatus() == 1) {
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
                         if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
@@ -162,7 +236,7 @@ public class AdminController {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 2 && type.getTypeId().equals(booking.getTypeId())) {
+                    if (booking.getStatus() == 1 && type.getTypeId().equals(booking.getTypeId())) {
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         if (!checkIn.isBefore(start) && !checkIn.isAfter(end)) {
                             bookingCount++;
@@ -199,13 +273,14 @@ public class AdminController {
             BigDecimal totalRevenue = BigDecimal.ZERO;
 
             for (Booking booking : allBookings) {
-                if (booking.getStatus() == 1)
+                if (booking.getStatus() == 0) {
                     pendingBookings++;
-                else if (booking.getStatus() == 2) {
+                } else if (booking.getStatus() == 1) {
                     paidBookings++;
                     totalRevenue = totalRevenue.add(booking.getTotalPrice());
-                } else if (booking.getStatus() == 3)
+                } else if (booking.getStatus() == 2) {
                     cancelledBookings++;
+                }
             }
 
             Map<String, Object> stats = new LinkedHashMap<>();
@@ -567,6 +642,9 @@ public class AdminController {
     @PostMapping("/type")
     public Result<Object> createSiteType(@RequestBody SiteType siteType) {
         try {
+            if (siteType.getStatus() == null) {
+                siteType.setStatus(1);
+            }
             siteType.setCreateTime(LocalDateTime.now());
             siteType.setUpdateTime(LocalDateTime.now());
             siteTypeMapper.insert(siteType);
@@ -602,6 +680,8 @@ public class AdminController {
             }
 
             siteType.setTypeId(typeId);
+            siteType.setStatus(siteType.getStatus() == null ? (existing.getStatus() == null ? 1 : existing.getStatus())
+                    : siteType.getStatus());
             siteType.setUpdateTime(LocalDateTime.now());
             siteTypeMapper.update(siteType);
 
@@ -663,6 +743,9 @@ public class AdminController {
     @PostMapping("/equipment")
     public Result<Object> createEquipment(@RequestBody Equipment equipment) {
         try {
+            if (equipment.getStatus() == null) {
+                equipment.setStatus(1);
+            }
             equipment.setCreateTime(LocalDateTime.now());
             equipment.setUpdateTime(LocalDateTime.now());
             equipmentMapper.insert(equipment);
@@ -698,6 +781,9 @@ public class AdminController {
             }
 
             equipment.setEquipId(equipId);
+            equipment
+                    .setStatus(equipment.getStatus() == null ? (existing.getStatus() == null ? 1 : existing.getStatus())
+                            : equipment.getStatus());
             equipment.setUpdateTime(LocalDateTime.now());
             equipmentMapper.update(equipment);
 
@@ -744,5 +830,33 @@ public class AdminController {
         } catch (Exception e) {
             return Result.error("Failed to delete equipment: " + e.getMessage());
         }
+    }
+
+    // ========== Helper builders ==========
+
+    private SiteType buildSiteType(String name, BigDecimal basePrice, int maxGuests, LocalDateTime now) {
+        SiteType st = new SiteType();
+        st.setTypeName(name);
+        st.setBasePrice(basePrice);
+        st.setMaxGuests(maxGuests);
+        st.setStatus(1);
+        st.setDescription("");
+        st.setImageUrl("");
+        st.setCreateTime(now);
+        st.setUpdateTime(now);
+        return st;
+    }
+
+    private Equipment buildEquip(String name, BigDecimal price, int stock, LocalDateTime now) {
+        Equipment e = new Equipment();
+        e.setEquipName(name);
+        e.setUnitPrice(price);
+        e.setTotalStock(stock);
+        e.setCategory("通用");
+        e.setDescription("");
+        e.setStatus(1);
+        e.setCreateTime(now);
+        e.setUpdateTime(now);
+        return e;
     }
 }

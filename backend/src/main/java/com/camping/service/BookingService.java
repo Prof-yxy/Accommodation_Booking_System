@@ -32,6 +32,8 @@ public interface BookingService {
      */
     List<Booking> getMyBookings(Long userId, Integer status) throws Exception;
 
+    List<Booking> getAllBookings() throws Exception;
+
     /**
      * 获取订单详情
      */
@@ -41,6 +43,11 @@ public interface BookingService {
      * 取消订单
      */
     void cancelBooking(Long bookingId) throws Exception;
+
+    /**
+     * 管理员结束/撤销订单
+     */
+    void endBooking(Long bookingId) throws Exception;
 
     /**
      * 获取订单的装备列表

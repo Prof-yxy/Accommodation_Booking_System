@@ -53,6 +53,10 @@
             <span class="value">{{ booking.siteNo || "-" }}</span>
           </div>
           <div class="info-row">
+            <span class="label">房型：</span>
+            <span class="value">{{ booking.typeName || "-" }}</span>
+          </div>
+          <div class="info-row">
             <span class="label">入住时间：</span>
             <span class="value"
               >{{ booking.checkIn }} 至 {{ booking.checkOut }}</span
@@ -63,6 +67,12 @@
             <span class="value"
               >{{ booking.guestName }} ({{ booking.guestPhone }})</span
             >
+          </div>
+          <div class="info-row" v-if="booking.equipments">
+            <span class="label">装备：</span>
+            <span class="value">{{
+              formatEquipments(booking.equipments)
+            }}</span>
           </div>
           <div class="info-row">
             <span class="label">总价：</span>
@@ -77,7 +87,7 @@
             查看详情
           </button>
           <button
-            v-if="booking.status === 0"
+            v-if="booking.status !== 2"
             class="btn-cancel"
             @click="cancelBooking(booking.bookingId)"
           >
@@ -97,6 +107,7 @@ import { bookingApi } from "@/api";
 interface Booking {
   bookingId: number;
   siteNo: string;
+  typeName?: string;
   checkIn: string;
   checkOut: string;
   guestName: string;
@@ -104,6 +115,7 @@ interface Booking {
   totalPrice: number;
   status: number;
   createTime: string;
+  equipments?: string;
 }
 
 const router = useRouter();
@@ -164,6 +176,10 @@ const getStatusClass = (status: number): string => {
 
 const formatPrice = (price: number): string => {
   return Number(price || 0).toFixed(2);
+};
+
+const formatEquipments = (equipments: string | undefined) => {
+  return equipments || "-";
 };
 
 onMounted(() => {

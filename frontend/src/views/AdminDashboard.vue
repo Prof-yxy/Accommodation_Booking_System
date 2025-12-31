@@ -9,8 +9,13 @@
         <div v-else>
           <div>总订单: {{ stats.totalBookings || 0 }}</div>
           <div>已支付: {{ stats.paidBookings || 0 }}</div>
-          <div>待支付: {{ stats.pendingPaymentBookings || 0 }}</div>
-          <div>已取消: {{ stats.canceledBookings || 0 }}</div>
+          <div>
+            待支付:
+            {{ stats.pendingBookings || stats.pendingPaymentBookings || 0 }}
+          </div>
+          <div>
+            已取消: {{ stats.cancelledBookings || stats.canceledBookings || 0 }}
+          </div>
           <div>总收入: {{ stats.totalRevenue || 0 }}</div>
         </div>
       </div>
@@ -25,7 +30,93 @@
           <div>总收入: {{ report.totalRevenue || 0 }}</div>
         </div>
       </div>
+
+      <div class="card">
+        <h3>数据维护</h3>
+        <button class="btn" :disabled="resetLoading" @click="onResetResources">
+          {{ resetLoading ? "重置中..." : "一键重置房型/营位/装备" }}
+        </button>
+        <div class="hint">重置后会写入默认房型与装备并清空定价</div>
+      </div>
     </div>
+
+    <!-- 全量订单列表 -->
+    <section class="block">
+      <header class="block__title bookings-header">
+        <span>订单列表</span>
+        <div class="filter-tabs">
+          <button
+            :class="{ active: statusFilter === null }"
+            @click="statusFilter = null"
+          >
+            全部
+          </button>
+          <button
+            :class="{ active: statusFilter === 0 }"
+            @click="statusFilter = 0"
+          >
+            待支付
+          </button>
+          <button
+            :class="{ active: statusFilter === 1 }"
+            @click="statusFilter = 1"
+          >
+            已完成
+          </button>
+          <button
+            :class="{ active: statusFilter === 2 }"
+            @click="statusFilter = 2"
+          >
+            已取消
+          </button>
+        </div>
+      </header>
+
+      <div v-if="loadingBookings" class="empty">加载中...</div>
+      <div v-else class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>房型</th>
+              <th>营位号</th>
+              <th>日期</th>
+              <th>联系人</th>
+              <th>电话</th>
+              <th>装备</th>
+              <th>总价</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in filteredBookings" :key="b.bookingId">
+              <td>{{ b.bookingId }}</td>
+              <td>{{ b.typeName || "-" }}</td>
+              <td>{{ b.siteNo || "-" }}</td>
+              <td>{{ b.checkIn }} ~ {{ b.checkOut }}</td>
+              <td>{{ b.guestName }}</td>
+              <td>{{ b.guestPhone }}</td>
+              <td>{{ b.equipments || "-" }}</td>
+              <td>￥{{ formatPrice(b.totalPrice) }}</td>
+              <td>{{ getStatusText(b.status) }}</td>
+              <td>
+                <button
+                  class="btn btn-danger"
+                  :disabled="b.status === 2 || endLoading"
+                  @click="endBooking(b.bookingId)"
+                >
+                  结束订单
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!filteredBookings.length">
+              <td colspan="10" class="empty">暂无订单</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <!-- 房型管理 -->
     <section class="block">
@@ -203,14 +294,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { adminApi, resourceApi } from "@/api";
+import { ref, onMounted, computed } from "vue";
+import { adminApi, resourceApi, bookingApi } from "@/api";
 import type { SiteType, Equipment } from "@/api";
 
 const stats = ref<any>({});
 const report = ref<any>({});
 const loadingStats = ref(true);
 const loadingReport = ref(true);
+
+// 全部订单
+const bookings = ref<any[]>([]);
+const loadingBookings = ref(true);
+const statusFilter = ref<number | null>(null);
+const endLoading = ref(false);
+const resetLoading = ref(false);
+const filteredBookings = computed(() => {
+  if (statusFilter.value === null) return bookings.value;
+  return bookings.value.filter((b) => b.status === statusFilter.value);
+});
 
 // 房型与装备列表
 const types = ref<SiteType[]>([]);
@@ -241,6 +343,33 @@ const editingEquipId = ref<number | null>(null);
 const editEquip = ref<any>({});
 
 onMounted(async () => {
+  await Promise.all([loadStats(), loadReport()]);
+  loadTypes();
+  loadEquipments();
+  loadBookings();
+});
+
+async function onResetResources() {
+  if (!confirm("确认重置房型、营位与装备到默认数据？")) return;
+  resetLoading.value = true;
+  try {
+    await adminApi.resetResources();
+    await Promise.all([
+      loadStats(),
+      loadReport(),
+      loadTypes(),
+      loadEquipments(),
+      loadBookings(),
+    ]);
+  } catch (e: any) {
+    alert(e?.message || "重置失败");
+  } finally {
+    resetLoading.value = false;
+  }
+}
+
+async function loadStats() {
+  loadingStats.value = true;
   try {
     const s: any = await adminApi.getBookingStats();
     stats.value = (s && s.data) || {};
@@ -249,7 +378,10 @@ onMounted(async () => {
   } finally {
     loadingStats.value = false;
   }
+}
 
+async function loadReport() {
+  loadingReport.value = true;
   try {
     const today = new Date();
     const start = new Date(today.getTime() - 7 * 24 * 3600 * 1000);
@@ -261,11 +393,32 @@ onMounted(async () => {
   } finally {
     loadingReport.value = false;
   }
+}
 
-  // 加载房型与装备列表
-  loadTypes();
-  loadEquipments();
-});
+async function loadBookings() {
+  loadingBookings.value = true;
+  try {
+    const res: any = await bookingApi.getAll();
+    bookings.value = res?.data || [];
+  } catch (e) {
+    bookings.value = [];
+  } finally {
+    loadingBookings.value = false;
+  }
+}
+
+async function endBooking(bookingId: number) {
+  if (!confirm("确定结束该订单并释放资源？")) return;
+  endLoading.value = true;
+  try {
+    await bookingApi.end(bookingId);
+    await loadBookings();
+  } catch (e: any) {
+    alert(e?.message || "结束失败");
+  } finally {
+    endLoading.value = false;
+  }
+}
 
 // ---------- 加载列表 ----------
 async function loadTypes() {
@@ -406,6 +559,15 @@ function formatPrice(val: any) {
   if (val === undefined || val === null) return "-";
   return Number(val).toFixed(2);
 }
+
+function getStatusText(status: number) {
+  const map: Record<number, string> = {
+    0: "待支付",
+    1: "已完成",
+    2: "已取消",
+  };
+  return map[status] || "-";
+}
 </script>
 
 <style scoped>
@@ -420,6 +582,11 @@ function formatPrice(val: any) {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 10px;
+}
+.bookings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .cards {
   display: flex;
@@ -454,6 +621,22 @@ function formatPrice(val: any) {
 }
 .data-table th {
   background: #f7f7f7;
+}
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+}
+.filter-tabs button {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.filter-tabs button.active {
+  background: #409eff;
+  border-color: #409eff;
+  color: #fff;
 }
 .btn {
   padding: 6px 10px;

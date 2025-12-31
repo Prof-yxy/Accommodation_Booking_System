@@ -178,7 +178,7 @@ const cancelBooking = async () => {
   try {
     await bookingApi.cancel(booking.value.bookingId);
     alert("预订已取消");
-    router.push("/my-bookings");
+    router.push("/site-list");
   } catch (error: any) {
     alert("取消失败: " + (error?.message || "未知错误"));
   }

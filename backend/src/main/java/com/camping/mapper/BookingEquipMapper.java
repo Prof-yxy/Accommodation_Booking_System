@@ -30,4 +30,9 @@ public interface BookingEquipMapper {
      * 删除预订装备
      */
     void deleteByBookingId(Long bookingId);
+
+    /**
+     * 清空所有预订装备
+     */
+    void deleteAll();
 }

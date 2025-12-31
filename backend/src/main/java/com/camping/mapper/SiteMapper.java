@@ -20,6 +20,11 @@ public interface SiteMapper {
     Site selectById(Long siteId);
 
     /**
+     * 按类型和编号查询
+     */
+    Site selectByTypeAndNo(@Param("typeId") Long typeId, @Param("siteNo") String siteNo);
+
+    /**
      * 查询可用营位（指定时间内无预订冲突）
      */
     List<Site> selectAvailable(@Param("typeId") Long typeId,
@@ -35,4 +40,9 @@ public interface SiteMapper {
      * 更新营位
      */
     void update(Site site);
+
+    /**
+     * 删除所有营位
+     */
+    void deleteAll();
 }

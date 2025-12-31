@@ -6,11 +6,14 @@
         <id column="booking_id" property="bookingId" javaType="java.lang.Long"/>
         <result column="user_id" property="userId" javaType="java.lang.Long"/>
         <result column="site_id" property="siteId" javaType="java.lang.Long"/>
+        <result column="site_no" property="siteNo" javaType="java.lang.String"/>
         <result column="type_id" property="typeId" javaType="java.lang.Long"/>
+        <result column="type_name" property="typeName" javaType="java.lang.String"/>
         <result column="check_in" property="checkIn" javaType="java.lang.String"/>
         <result column="check_out" property="checkOut" javaType="java.lang.String"/>
         <result column="guest_name" property="guestName" javaType="java.lang.String"/>
         <result column="guest_phone" property="guestPhone" javaType="java.lang.String"/>
+        <result column="equipments" property="equipments" javaType="java.lang.String"/>
         <result column="total_price" property="totalPrice" javaType="java.math.BigDecimal"/>
         <result column="status" property="status" javaType="java.lang.Integer"/>
         <result column="create_time" property="createTime" javaType="java.time.LocalDateTime"/>
@@ -18,35 +21,53 @@
     </resultMap>
 
     <select id="selectById" parameterType="java.lang.Long" resultMap="BookingResultMap">
-        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
-               total_price, status, create_time, update_time
-        FROM bookings
-        WHERE booking_id = #{bookingId}
+         SELECT b.booking_id, b.user_id, b.site_id, b.type_id, b.check_in, b.check_out, b.guest_name, b.guest_phone,
+             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name,
+             COALESCE(string_agg(e.equip_name || 'x' || be.quantity, ', '), '') AS equipments
+         FROM bookings b
+         LEFT JOIN sites s ON b.site_id = s.site_id
+         LEFT JOIN site_types st ON b.type_id = st.type_id
+         LEFT JOIN booking_equips be ON b.booking_id = be.booking_id
+         LEFT JOIN equipments e ON be.equip_id = e.equip_id
+         WHERE b.booking_id = #{bookingId}
+         GROUP BY b.booking_id, s.site_no, st.type_name
     </select>
 
     <select id="selectByUserId" parameterType="java.lang.Long" resultMap="BookingResultMap">
-        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
-               total_price, status, create_time, update_time
-        FROM bookings
-        WHERE user_id = #{userId}
-        ORDER BY create_time DESC
+         SELECT b.booking_id, b.user_id, b.site_id, b.type_id, b.check_in, b.check_out, b.guest_name, b.guest_phone,
+             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name,
+             COALESCE(string_agg(e.equip_name || 'x' || be.quantity, ', '), '') AS equipments
+         FROM bookings b
+         LEFT JOIN sites s ON b.site_id = s.site_id
+         LEFT JOIN site_types st ON b.type_id = st.type_id
+         LEFT JOIN booking_equips be ON b.booking_id = be.booking_id
+         LEFT JOIN equipments e ON be.equip_id = e.equip_id
+         WHERE b.user_id = #{userId}
+         GROUP BY b.booking_id, s.site_no, st.type_name
+         ORDER BY b.create_time DESC
     </select>
 
     <select id="selectByUserIdAndStatus" parameterType="java.util.Map" resultMap="BookingResultMap">
-        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
-               total_price, status, create_time, update_time
-        FROM bookings
-        WHERE user_id = #{userId} AND status = #{status}
-        ORDER BY create_time DESC
+         SELECT b.booking_id, b.user_id, b.site_id, b.type_id, b.check_in, b.check_out, b.guest_name, b.guest_phone,
+             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name,
+             COALESCE(string_agg(e.equip_name || 'x' || be.quantity, ', '), '') AS equipments
+         FROM bookings b
+         LEFT JOIN sites s ON b.site_id = s.site_id
+         LEFT JOIN site_types st ON b.type_id = st.type_id
+         LEFT JOIN booking_equips be ON b.booking_id = be.booking_id
+         LEFT JOIN equipments e ON be.equip_id = e.equip_id
+         WHERE b.user_id = #{userId} AND b.status = #{status}
+         GROUP BY b.booking_id, s.site_no, st.type_name
+         ORDER BY b.create_time DESC
     </select>
 
     <select id="selectConflict" parameterType="java.util.Map" resultMap="BookingResultMap">
-        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
-               total_price, status, create_time, update_time
-        FROM bookings
-        WHERE type_id = #{typeId}
-        AND status IN (0, 1)
-        AND NOT (check_out &lt;= CAST(#{checkIn} AS DATE) OR check_in &gt;= CAST(#{checkOut} AS DATE))
+         SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone,
+             total_price, status, create_time, update_time
+         FROM bookings
+         WHERE type_id = #{typeId}
+         AND status IN (0, 1)
+         AND NOT (check_out &lt;= CAST(#{checkIn} AS DATE) OR check_in &gt;= CAST(#{checkOut} AS DATE))
     </select>
 
     <insert id="insert" parameterType="com.camping.entity.Booking" useGeneratedKeys="true" keyProperty="bookingId">
@@ -72,10 +93,20 @@
     </update>
 
     <select id="selectAll" resultMap="BookingResultMap">
-        SELECT booking_id, user_id, site_id, type_id, check_in, check_out, guest_name, guest_phone, 
-               total_price, status, create_time, update_time
-        FROM bookings
-        ORDER BY create_time DESC
+         SELECT b.booking_id, b.user_id, b.site_id, b.type_id, b.check_in, b.check_out, b.guest_name, b.guest_phone,
+             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name,
+             COALESCE(string_agg(e.equip_name || 'x' || be.quantity, ', '), '') AS equipments
+         FROM bookings b
+         LEFT JOIN sites s ON b.site_id = s.site_id
+         LEFT JOIN site_types st ON b.type_id = st.type_id
+         LEFT JOIN booking_equips be ON b.booking_id = be.booking_id
+         LEFT JOIN equipments e ON be.equip_id = e.equip_id
+         GROUP BY b.booking_id, s.site_no, st.type_name
+         ORDER BY b.create_time DESC
     </select>
+
+    <delete id="deleteAll">
+        DELETE FROM bookings
+    </delete>
 
 </mapper>

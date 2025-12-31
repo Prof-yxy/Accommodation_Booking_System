@@ -73,6 +73,19 @@ public class BookingController {
     }
 
     /**
+     * 获取全部订单（管理员视图）
+     */
+    @GetMapping("/all")
+    public Result<List<Object>> allBookings() {
+        try {
+            var bookings = bookingService.getAllBookings();
+            return Result.success((List<Object>) (List<?>) bookings);
+        } catch (Exception e) {
+            return Result.error("获取订单列表失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 获取订单详情
      */
     @GetMapping("/{bookingId}")
@@ -95,6 +108,19 @@ public class BookingController {
             return Result.success(null);
         } catch (Exception e) {
             return Result.error("取消订单失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 管理员提前结束订单，立即释放资源
+     */
+    @PostMapping("/end")
+    public Result<Void> endBooking(@RequestBody PayDTO dto) {
+        try {
+            bookingService.endBooking(dto.getBookingId());
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("结束订单失败: " + e.getMessage());
         }
     }
 

@@ -262,6 +262,7 @@ public class ResourceController {
             @RequestParam String startDate,
             @RequestParam String endDate) {
         try {
+            DateTimeFormatter fmt = DateTimeFormatter.ISO_DATE;
             var data = new java.util.LinkedHashMap<String, Object>();
             data.put("kind", kind);
             data.put("typeId", typeId);
@@ -284,9 +285,11 @@ public class ResourceController {
                 int minAvailable = totalSites;
                 LocalDate start = LocalDate.parse(startDate);
                 LocalDate end = LocalDate.parse(endDate);
-                for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                    String dateStr = date.format(DateTimeFormatter.ISO_DATE);
-                    List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, dateStr);
+                LocalDate endExclusive = end.isEqual(start) ? end.plusDays(1) : end;
+                for (LocalDate date = start; date.isBefore(endExclusive); date = date.plusDays(1)) {
+                    String dateStr = date.format(fmt);
+                    String nextDay = date.plusDays(1).format(fmt);
+                    List<Site> availableSites = siteMapper.selectAvailable(typeId, dateStr, nextDay);
                     int available = availableSites != null ? availableSites.size() : totalSites;
                     minAvailable = Math.min(minAvailable, available);
                 }
@@ -304,8 +307,8 @@ public class ResourceController {
 
                 int totalStock = equipment.getTotalStock() != null ? equipment.getTotalStock() : 0;
 
-                // 查询日期范围内最大已使用数
-                Integer maxUsed = bookingEquipMapper.sumQuantityByEquipAndDate(typeId, startDate, endDate);
+                String endExclusive = LocalDate.parse(endDate).plusDays(1).format(fmt);
+                Integer maxUsed = bookingEquipMapper.sumQuantityByEquipAndDate(typeId, startDate, endExclusive);
                 int used = maxUsed != null ? maxUsed : 0;
                 int available = totalStock - used;
 

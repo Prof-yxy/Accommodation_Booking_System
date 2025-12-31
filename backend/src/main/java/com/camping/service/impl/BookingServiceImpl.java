@@ -6,6 +6,7 @@ import com.camping.dto.EquipSelectDTO;
 import com.camping.entity.*;
 import com.camping.mapper.*;
 import com.camping.service.BookingService;
+import java.math.RoundingMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,10 @@ import java.util.*;
  */
 @Service
 public class BookingServiceImpl implements BookingService {
+
+    private static final BigDecimal WEEKDAY_RATE = BigDecimal.ONE;
+    private static final BigDecimal WEEKEND_RATE = new BigDecimal("1.15");
+    private static final BigDecimal DAYPASS_RATE = new BigDecimal("0.60");
 
     @Autowired
     private SiteTypeMapper siteTypeMapper;
@@ -61,38 +66,34 @@ public class BookingServiceImpl implements BookingService {
                 return result;
             }
 
-            // 2. 计算天数
-            int nights = calculateNights(dto.getCheckIn(), dto.getCheckOut());
+            boolean isDayPass = isDayPass(dto.getCheckIn(), dto.getCheckOut());
+            LocalDate startDate = LocalDate.parse(dto.getCheckIn());
+            LocalDate endExclusive = resolveEffectiveCheckout(dto.getCheckIn(), dto.getCheckOut());
+            int nights = Math.max(1, (int) ChronoUnit.DAYS.between(startDate, endExclusive));
 
             // 3. 查询日价格并累计
             List<Map<String, Object>> priceDetail = new ArrayList<>();
             BigDecimal sitePrice = BigDecimal.ZERO;
 
-            LocalDate startDate = LocalDate.parse(dto.getCheckIn());
-            LocalDate endDate = LocalDate.parse(dto.getCheckOut());
-
-            for (LocalDate date = startDate; date.isBefore(endDate); date = date.plusDays(1)) {
+            for (LocalDate date = startDate; date.isBefore(endExclusive); date = date.plusDays(1)) {
                 String dateStr = date.format(DateTimeFormatter.ISO_DATE);
-                DailyPrice dailyPrice = dailyPriceMapper.selectByTypeAndDate(dto.getTypeId(), dateStr);
-
-                BigDecimal dayPrice;
-                if (dailyPrice != null && dailyPrice.getPrice() != null) {
-                    dayPrice = dailyPrice.getPrice();
-                } else {
-                    dayPrice = siteType.getBasePrice();
-                }
-
+                BigDecimal dayPrice = computeDailySitePrice(siteType, dto.getTypeId(), dateStr);
                 sitePrice = sitePrice.add(dayPrice);
 
                 Map<String, Object> dayDetail = new LinkedHashMap<>();
                 dayDetail.put("date", dateStr);
                 dayDetail.put("price", dayPrice);
+                dayDetail.put("weekend", isWeekend(date));
                 priceDetail.add(dayDetail);
+            }
+
+            if (isDayPass) {
+                sitePrice = sitePrice.multiply(DAYPASS_RATE).setScale(2, RoundingMode.HALF_UP);
             }
 
             // 4. 检查营位可用性
             List<Site> availableSites = siteMapper.selectAvailable(dto.getTypeId(), dto.getCheckIn(),
-                    dto.getCheckOut());
+                    endExclusive.format(DateTimeFormatter.ISO_DATE));
             boolean siteAvailable = availableSites != null && !availableSites.isEmpty();
 
             // 5. 计算装备价格并检查库存
@@ -111,7 +112,7 @@ public class BookingServiceImpl implements BookingService {
 
                         // 检查库存
                         Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(
-                                equip.getEquipId(), dto.getCheckIn(), dto.getCheckOut());
+                                equip.getEquipId(), dto.getCheckIn(), endExclusive.format(DateTimeFormatter.ISO_DATE));
                         int used = usedCount != null ? usedCount : 0;
                         int available = (equipment.getTotalStock() != null ? equipment.getTotalStock() : 0) - used;
 
@@ -137,6 +138,7 @@ public class BookingServiceImpl implements BookingService {
             priceDetailMap.put("dailyPrices", priceDetail);
             priceDetailMap.put("equipmentPrice", equipmentPrice);
             priceDetailMap.put("nights", nights);
+            priceDetailMap.put("mode", isDayPass ? "daypass" : "overnight");
             result.put("priceDetail", priceDetailMap);
 
             return result;
@@ -166,12 +168,18 @@ public class BookingServiceImpl implements BookingService {
             if (dto.getUserId() == null || dto.getTypeId() == null) {
                 throw new Exception("用户ID或房型ID不能为空");
             }
+            int quantity = dto.getQuantity() != null && dto.getQuantity() > 0 ? dto.getQuantity() : 1;
 
             // 2. 查询房型
             SiteType siteType = siteTypeMapper.selectById(dto.getTypeId());
             if (siteType == null) {
                 throw new Exception("房型不存在");
             }
+
+            boolean isDayPass = isDayPass(dto.getCheckIn(), dto.getCheckOut());
+            LocalDate startDate = LocalDate.parse(dto.getCheckIn());
+            LocalDate endExclusive = resolveEffectiveCheckout(dto.getCheckIn(), dto.getCheckOut());
+            int nights = Math.max(1, (int) ChronoUnit.DAYS.between(startDate, endExclusive));
 
             // 3. 装备库存检查
             if (dto.getEquipments() != null && !dto.getEquipments().isEmpty()) {
@@ -182,7 +190,7 @@ public class BookingServiceImpl implements BookingService {
                     }
 
                     Integer usedCount = bookingEquipMapper.sumQuantityByEquipAndDate(
-                            equip.getEquipId(), dto.getCheckIn(), dto.getCheckOut());
+                            equip.getEquipId(), dto.getCheckIn(), endExclusive.format(DateTimeFormatter.ISO_DATE));
                     int used = usedCount != null ? usedCount : 0;
                     int available = (equipment.getTotalStock() != null ? equipment.getTotalStock() : 0) - used;
 
@@ -194,28 +202,22 @@ public class BookingServiceImpl implements BookingService {
 
             // 4. 营位自动分配
             List<Site> availableSites = siteMapper.selectAvailable(dto.getTypeId(), dto.getCheckIn(),
-                    dto.getCheckOut());
-            if (availableSites == null || availableSites.isEmpty()) {
-                throw new Exception("暂无可用营位");
+                    endExclusive.format(DateTimeFormatter.ISO_DATE));
+            if (availableSites == null || availableSites.size() < quantity) {
+                throw new Exception("可用营位不足, 剩余: " + (availableSites == null ? 0 : availableSites.size()));
             }
-            Site allocatedSite = availableSites.get(0);
 
             // 5. 价格计算 (服务端计算，不信任前端传来的价格)
-            int nights = calculateNights(dto.getCheckIn(), dto.getCheckOut());
             BigDecimal sitePrice = BigDecimal.ZERO;
 
-            LocalDate startDate = LocalDate.parse(dto.getCheckIn());
-            LocalDate endDate = LocalDate.parse(dto.getCheckOut());
-
-            for (LocalDate date = startDate; date.isBefore(endDate); date = date.plusDays(1)) {
+            for (LocalDate date = startDate; date.isBefore(endExclusive); date = date.plusDays(1)) {
                 String dateStr = date.format(DateTimeFormatter.ISO_DATE);
-                DailyPrice dailyPrice = dailyPriceMapper.selectByTypeAndDate(dto.getTypeId(), dateStr);
+                BigDecimal dayPrice = computeDailySitePrice(siteType, dto.getTypeId(), dateStr);
+                sitePrice = sitePrice.add(dayPrice);
+            }
 
-                if (dailyPrice != null && dailyPrice.getPrice() != null) {
-                    sitePrice = sitePrice.add(dailyPrice.getPrice());
-                } else {
-                    sitePrice = sitePrice.add(siteType.getBasePrice());
-                }
+            if (isDayPass) {
+                sitePrice = sitePrice.multiply(DAYPASS_RATE).setScale(2, RoundingMode.HALF_UP);
             }
 
             BigDecimal equipmentPrice = BigDecimal.ZERO;
@@ -231,41 +233,51 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
 
-            BigDecimal totalPrice = sitePrice.add(equipmentPrice);
+            BigDecimal totalPricePerSite = sitePrice;
+            BigDecimal totalPrice = totalPricePerSite.multiply(new BigDecimal(quantity)).add(equipmentPrice);
 
-            // 6. 创建订单对象
-            Booking booking = new Booking();
-            booking.setUserId(dto.getUserId());
-            booking.setTypeId(dto.getTypeId());
-            booking.setSiteId(allocatedSite.getSiteId());
-            booking.setCheckIn(dto.getCheckIn());
-            booking.setCheckOut(dto.getCheckOut());
-            booking.setGuestName(dto.getGuestName());
-            booking.setGuestPhone(dto.getGuestPhone());
-            booking.setTotalPrice(totalPrice);
-            booking.setStatus(1); // 1: 待支付
-            booking.setCreateTime(LocalDateTime.now());
+            List<Long> bookingIds = new ArrayList<>();
+            List<String> siteNos = new ArrayList<>();
 
-            bookingMapper.insert(booking);
-            Long bookingId = booking.getBookingId();
+            for (int i = 0; i < quantity; i++) {
+                Site allocatedSite = availableSites.get(i);
 
-            // 7. 保存装备关联
-            if (dto.getEquipments() != null && !dto.getEquipments().isEmpty()) {
-                for (EquipSelectDTO equip : dto.getEquipments()) {
-                    BookingEquip bookingEquip = new BookingEquip();
-                    bookingEquip.setBookingId(bookingId);
-                    bookingEquip.setEquipId(equip.getEquipId());
-                    bookingEquip.setQuantity(equip.getCount());
+                Booking booking = new Booking();
+                booking.setUserId(dto.getUserId());
+                booking.setTypeId(dto.getTypeId());
+                booking.setSiteId(allocatedSite.getSiteId());
+                booking.setCheckIn(dto.getCheckIn());
+                booking.setCheckOut(dto.getCheckOut());
+                booking.setGuestName(dto.getGuestName());
+                booking.setGuestPhone(dto.getGuestPhone());
+                booking.setTotalPrice(totalPricePerSite.add(equipmentPrice));
+                booking.setStatus(0); // 0: 待支付
+                booking.setCreateTime(LocalDateTime.now());
 
-                    bookingEquipMapper.insert(bookingEquip);
+                bookingMapper.insert(booking);
+                Long bookingId = booking.getBookingId();
+                bookingIds.add(bookingId);
+                siteNos.add(allocatedSite.getSiteNo());
+
+                // 保存装备关联
+                if (dto.getEquipments() != null && !dto.getEquipments().isEmpty()) {
+                    for (EquipSelectDTO equip : dto.getEquipments()) {
+                        BookingEquip bookingEquip = new BookingEquip();
+                        bookingEquip.setBookingId(bookingId);
+                        bookingEquip.setEquipId(equip.getEquipId());
+                        bookingEquip.setQuantity(equip.getCount());
+
+                        bookingEquipMapper.insert(bookingEquip);
+                    }
                 }
             }
 
-            // 8. 返回结果
-            result.put("bookingId", bookingId);
-            result.put("siteNo", allocatedSite.getSiteNo());
+            // 返回结果
+            result.put("bookingIds", bookingIds);
+            result.put("siteNos", siteNos);
             result.put("totalPrice", totalPrice);
-            result.put("status", booking.getStatus());
+            result.put("status", 0);
+            result.put("quantity", quantity);
 
             return result;
 
@@ -290,11 +302,11 @@ public class BookingServiceImpl implements BookingService {
             throw new Exception("订单不存在");
         }
 
-        if (booking.getStatus() != 1) { // 1: 待支付
+        if (booking.getStatus() != 0) { // 0: 待支付
             throw new Exception("订单状态无效，无法支付");
         }
 
-        booking.setStatus(2); // 2: 已支付
+        booking.setStatus(1); // 1: 已完成/已支付
         booking.setUpdateTime(LocalDateTime.now());
 
         bookingMapper.update(booking);
@@ -331,33 +343,24 @@ public class BookingServiceImpl implements BookingService {
         return booking;
     }
 
+    @Override
+    public List<Booking> getAllBookings() throws Exception {
+        return bookingMapper.selectAll();
+    }
+
     /**
      * 取消订单
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelBooking(Long bookingId) throws Exception {
-        if (bookingId == null) {
-            throw new Exception("订单ID不能为空");
-        }
+        finalizeBooking(bookingId, 2);
+    }
 
-        Booking booking = bookingMapper.selectById(bookingId);
-
-        if (booking == null) {
-            throw new Exception("订单不存在");
-        }
-
-        if (booking.getStatus() == 3) { // 3: 已取消
-            throw new Exception("订单已取消");
-        }
-
-        booking.setStatus(3); // 3: 已取消
-        booking.setUpdateTime(LocalDateTime.now());
-
-        bookingMapper.update(booking);
-
-        // 删除装备关联 (释放库存)
-        bookingEquipMapper.deleteByBookingId(bookingId);
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void endBooking(Long bookingId) throws Exception {
+        finalizeBooking(bookingId, 2);
     }
 
     /**
@@ -391,11 +394,54 @@ public class BookingServiceImpl implements BookingService {
     // ==================== 辅助方法 ====================
 
     /**
-     * 计算入住天数
+     * 统一将订单置为指定状态，并释放装备占用（用于取消/结束）
      */
-    private int calculateNights(String checkIn, String checkOut) {
+    private void finalizeBooking(Long bookingId, int targetStatus) throws Exception {
+        if (bookingId == null) {
+            throw new Exception("订单ID不能为空");
+        }
+
+        Booking booking = bookingMapper.selectById(bookingId);
+        if (booking == null) {
+            throw new Exception("订单不存在");
+        }
+
+        if (booking.getStatus() == targetStatus) {
+            return; // 已经是目标状态，视为成功
+        }
+
+        booking.setStatus(targetStatus);
+        booking.setUpdateTime(LocalDateTime.now());
+        bookingMapper.update(booking);
+
+        // 删除装备关联 (释放库存)
+        bookingEquipMapper.deleteByBookingId(bookingId);
+    }
+
+    private boolean isWeekend(LocalDate date) {
+        return date.getDayOfWeek().getValue() >= 6;
+    }
+
+    private boolean isDayPass(String checkIn, String checkOut) {
+        return LocalDate.parse(checkIn).isEqual(LocalDate.parse(checkOut));
+    }
+
+    /**
+     * 同一天预订视为日营，退出日向后顺延一天用于占用检查
+     */
+    private LocalDate resolveEffectiveCheckout(String checkIn, String checkOut) {
         LocalDate start = LocalDate.parse(checkIn);
         LocalDate end = LocalDate.parse(checkOut);
-        return (int) ChronoUnit.DAYS.between(start, end);
+        return end.isEqual(start) ? end.plusDays(1) : end;
+    }
+
+    private BigDecimal computeDailySitePrice(SiteType siteType, Long typeId, String dateStr) {
+        DailyPrice dailyPrice = dailyPriceMapper.selectByTypeAndDate(typeId, dateStr);
+        if (dailyPrice != null && dailyPrice.getPrice() != null) {
+            return dailyPrice.getPrice();
+        }
+        LocalDate date = LocalDate.parse(dateStr);
+        BigDecimal factor = isWeekend(date) ? WEEKEND_RATE : WEEKDAY_RATE;
+        return siteType.getBasePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP);
     }
 }

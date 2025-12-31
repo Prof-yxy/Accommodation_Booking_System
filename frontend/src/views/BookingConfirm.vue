@@ -79,6 +79,14 @@
 
     <div v-if="result" class="result">
       <h3>提交结果</h3>
+      <p v-if="result.bookingIds || result.bookingId">
+        订单编号：{{ result.bookingIds?.join(", ") || result.bookingId }}
+      </p>
+      <p v-if="result.siteNos || result.siteNo">
+        场地编号：{{ result.siteNos?.join(", ") || result.siteNo }}
+      </p>
+      <p v-if="result.quantity">数量：{{ result.quantity }}</p>
+      <p v-if="result.totalPrice">总价：{{ result.totalPrice }}</p>
       <pre>{{ result }}</pre>
     </div>
   </div>
@@ -115,6 +123,7 @@ async function onSubmit() {
         kind.value === "equip"
           ? [{ equipId: selectedTypeId.value, count: quantity.value }]
           : [],
+      quantity: quantity.value,
       userId: parseInt(localStorage.getItem("userId") || "1"),
       guestName: guestName.value,
       guestPhone: guestPhone.value,

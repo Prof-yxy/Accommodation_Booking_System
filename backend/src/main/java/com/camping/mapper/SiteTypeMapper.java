@@ -19,6 +19,11 @@ public interface SiteTypeMapper {
     SiteType selectById(Long typeId);
 
     /**
+     * 按名称查询
+     */
+    SiteType selectByName(String typeName);
+
+    /**
      * 插入房型
      */
     void insert(SiteType siteType);
@@ -32,4 +37,7 @@ public interface SiteTypeMapper {
      * 删除房型
      */
     void delete(Long typeId);
+
+    /** 删除全部房型 */
+    void deleteAll();
 }
