@@ -64,7 +64,7 @@ camping-system/
 datasource:
   url: jdbc:postgresql://localhost:5432/camping_db
   username: postgres
-  password: yangxy # 将这个密码改为自己的PostgreSQL超级用户密码
+  password: 5723 # 将这个密码改为自己的PostgreSQL超级用户密码
   driver-class-name: org.postgresql.Driver
 ```
 
