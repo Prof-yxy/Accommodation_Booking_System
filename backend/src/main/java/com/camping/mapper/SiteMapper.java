@@ -42,6 +42,11 @@ public interface SiteMapper {
     void update(Site site);
 
     /**
+     * 删除营位
+     */
+    void delete(Long siteId);
+
+    /**
      * 删除所有营位
      */
     void deleteAll();

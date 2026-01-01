@@ -54,7 +54,7 @@
               <div class="equip-name">{{ equip.equipName }}</div>
               <div class="equip-meta">
                 ￥{{ formatPrice(equip.unitPrice) }} /天 · 库存:
-                {{ equip.totalStock ?? "?" }}
+                {{ equip.availableStock ?? equip.totalStock ?? "?" }}
               </div>
               <div class="equip-desc">{{ equip.description || "" }}</div>
             </div>
@@ -62,7 +62,7 @@
               <input
                 type="number"
                 min="0"
-                :max="equip.totalStock || 99"
+                :max="equip.availableStock ?? equip.totalStock ?? 99"
                 v-model.number="equip.count"
               />
               <span
@@ -133,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { bookingApi, resourceApi } from "@/api";
 
 const selectedTypeId = ref<number | null>(null);
@@ -160,6 +160,9 @@ const nightsEstimate = computed(() => {
 
 async function onSubmit() {
   try {
+    if (!remainingInfo.value) {
+      await onQuery();
+    }
     if (!canSubmit.value) {
       result.value = { error: "请先查询并选择有效数量" };
       return;
@@ -173,7 +176,10 @@ async function onSubmit() {
       checkOut: checkOut.value,
       equipments: equipsPayload,
       quantity: quantity.value,
-      userId: parseInt(localStorage.getItem("userId") || "1"),
+      userId: (() => {
+        const u = localStorage.getItem("user");
+        return u ? JSON.parse(u).userId : 1;
+      })(),
       guestName: guestName.value,
       guestPhone: guestPhone.value,
     };
@@ -193,6 +199,13 @@ async function onQuery() {
   remainingInfo.value = null;
   quantity.value = 1;
   quantityOptions.value = [];
+
+  if (checkIn.value && checkOut.value && checkIn.value > checkOut.value) {
+    result.value = { error: "入住日期不能晚于离店日期" };
+    return;
+  }
+
+  fetchEquipments();
   if (!selectedTypeId.value || !checkIn.value || !checkOut.value) {
     result.value = { error: "请先选择类型并填写日期" };
     return;
@@ -217,19 +230,86 @@ async function onQuery() {
   }
 }
 
+watch([selectedTypeId, checkIn, checkOut], () => {
+  if (selectedTypeId.value && checkIn.value && checkOut.value) {
+    onQuery();
+  }
+});
+
 const canSubmit = computed(() => {
-  return (
+  const basicValid =
     !!selectedTypeId.value &&
     !!checkIn.value &&
     !!checkOut.value &&
     !!guestName.value &&
-    !!guestPhone.value &&
-    !!remainingInfo.value &&
-    (remainingInfo.value?.remaining || 0) > 0 &&
-    quantity.value >= 1 &&
-    quantity.value <= (remainingInfo.value?.remaining || 0)
-  );
+    !!guestPhone.value;
+
+  if (!basicValid) return false;
+  if (checkIn.value > checkOut.value) return false;
+
+  if (remainingInfo.value) {
+    return (
+      remainingInfo.value.remaining > 0 &&
+      quantity.value >= 1 &&
+      quantity.value <= remainingInfo.value.remaining
+    );
+  }
+  return true;
 });
+
+async function fetchEquipments() {
+  try {
+    const equipsRes: any = await resourceApi.getEquipments();
+    let rawList = equipsRes?.data || [];
+
+    // 如果已选择日期，则查询每个装备在该日期的可用量
+    if (checkIn.value && checkOut.value && rawList.length > 0) {
+      try {
+        const promises = rawList.map((e: any) => {
+          const eId = Number(e.equipId || e.id);
+          return resourceApi
+            .queryAvailability("equip", eId, checkIn.value, checkOut.value)
+            .then((res: any) => ({
+              id: eId,
+              remaining: res?.data?.remaining,
+            }))
+            .catch(() => ({ id: eId, remaining: null }));
+        });
+        const results = await Promise.all(promises);
+        const resultMap = new Map(results.map((r) => [r.id, r.remaining]));
+
+        rawList = rawList.map((e: any) => {
+          const eId = Number(e.equipId || e.id);
+          const rem = resultMap.get(eId);
+          if (rem !== null && rem !== undefined) {
+            return { ...e, availableStock: rem };
+          }
+          return e;
+        });
+      } catch (queryErr) {
+        console.error("Failed to query equipment availability", queryErr);
+      }
+    }
+
+    const currentCounts = new Map(
+      equipments.value.map((e) => [e.equipId, e.count])
+    );
+    equipments.value = rawList.map((e: any) => ({
+      equipId: Number(e.equipId || e.id),
+      equipName: e.equipName || e.name,
+      unitPrice: Number(e.unitPrice || e.price || 0),
+      availableStock:
+        e.availableStock != null && e.totalStock != null
+          ? Math.min(e.availableStock, e.totalStock)
+          : e.availableStock,
+      totalStock: e.totalStock,
+      description: e.description,
+      count: currentCounts.get(Number(e.equipId || e.id)) || 0,
+    }));
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 onMounted(async () => {
   const fallbackTypes = [
@@ -240,28 +320,16 @@ onMounted(async () => {
     { value: 5, label: "輕奢鈴鐺帳" },
   ];
   try {
-    const [typesRes, equipsRes]: any = await Promise.all([
-      resourceApi.getSiteTypes(),
-      resourceApi.getEquipments(),
-    ]);
+    const typesRes: any = await resourceApi.getSiteTypes();
     const typeList = (typesRes?.data || []).map((t: any) => ({
       value: Number(t.typeId || t.id),
       label: String(t.typeName || t.name || "房型"),
     }));
     typeOptions.value = typeList.length ? typeList : fallbackTypes;
-
-    equipments.value = (equipsRes?.data || []).map((e: any) => ({
-      equipId: Number(e.equipId || e.id),
-      equipName: e.equipName || e.name,
-      unitPrice: Number(e.unitPrice || e.price || 0),
-      totalStock: e.totalStock,
-      description: e.description,
-      count: 0,
-    }));
   } catch (err) {
     typeOptions.value = fallbackTypes;
-    equipments.value = [];
   }
+  await fetchEquipments();
 });
 
 function resetEquipments() {

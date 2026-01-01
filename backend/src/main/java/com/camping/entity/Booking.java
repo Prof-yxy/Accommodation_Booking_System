@@ -16,6 +16,7 @@ public class Booking {
     private String checkOut;
     private String guestName;
     private String guestPhone;
+    private String userName;
     private String typeName;
     private String equipments; // 聚合的装备信息 "NamexQty, ..."
     private BigDecimal totalPrice;
@@ -96,6 +97,14 @@ public class Booking {
 
     public void setGuestPhone(String guestPhone) {
         this.guestPhone = guestPhone;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     public String getTypeName() {

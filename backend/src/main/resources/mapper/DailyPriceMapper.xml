@@ -43,6 +43,10 @@
         WHERE type_id = #{typeId} AND specific_date = CAST(#{specificDate} AS DATE)
     </delete>
 
+    <delete id="deleteByTypeId" parameterType="java.lang.Long">
+        DELETE FROM daily_prices WHERE type_id = #{typeId}
+    </delete>
+
     <delete id="deleteAll">
         DELETE FROM daily_prices
     </delete>

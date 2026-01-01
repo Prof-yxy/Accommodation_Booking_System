@@ -128,8 +128,9 @@ const loadBookings = async (status: number | null = null) => {
   currentStatus.value = status;
 
   try {
-    // 从 localStorage 获取用户 ID（演示用）
-    const userId = parseInt(localStorage.getItem("userId") || "1");
+    // 从 localStorage 获取用户 ID
+    const userStr = localStorage.getItem("user");
+    const userId = userStr ? JSON.parse(userStr).userId : 1;
     const res: any = await bookingApi.getMyList(userId, status ?? undefined);
     bookings.value = res?.data || [];
   } catch (error) {

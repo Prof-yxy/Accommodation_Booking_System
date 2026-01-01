@@ -64,6 +64,10 @@
         WHERE site_id = #{siteId}
     </update>
 
+    <delete id="delete" parameterType="java.lang.Long">
+        DELETE FROM sites WHERE site_id = #{siteId}
+    </delete>
+
     <delete id="deleteAll">
         DELETE FROM sites
     </delete>

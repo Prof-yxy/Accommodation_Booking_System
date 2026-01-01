@@ -1,5 +1,7 @@
 <template>
   <div class="site-list">
+    <h2>房型/装备查询</h2>
+
     <section class="controls">
       <label for="date-select">选择日期：</label>
       <input
@@ -19,6 +21,7 @@
         <thead>
           <tr>
             <th>房型</th>
+            <th>图片</th>
             <th>当日价</th>
             <th>基础价</th>
             <th>可住人数</th>
@@ -29,6 +32,22 @@
         <tbody>
           <tr v-for="type in types" :key="type.typeId">
             <td>{{ type.typeName }}</td>
+            <td>
+              <img
+                v-if="type.imageUrl"
+                :src="type.imageUrl"
+                alt="img"
+                style="
+                  width: 60px;
+                  height: 40px;
+                  object-fit: cover;
+                  border-radius: 4px;
+                  cursor: pointer;
+                "
+                @click="showImagePreview(type.imageUrl)"
+              />
+              <span v-else>-</span>
+            </td>
             <td>￥{{ formatPrice(type.priceToday ?? type.basePrice) }}</td>
             <td>￥{{ formatPrice(type.basePrice) }}</td>
             <td>{{ type.maxGuests }}</td>
@@ -36,7 +55,7 @@
             <td>{{ type.description || "-" }}</td>
           </tr>
           <tr v-if="types.length === 0">
-            <td colspan="6" class="empty">暂无房型数据</td>
+            <td colspan="7" class="empty">暂无房型数据</td>
           </tr>
         </tbody>
       </table>
@@ -69,6 +88,14 @@
         </tbody>
       </table>
     </section>
+
+    <!-- 图片预览弹窗 -->
+    <div v-if="previewImage" class="image-modal" @click="closeImagePreview">
+      <div class="image-modal-content" @click.stop>
+        <img :src="previewImage" alt="Preview" />
+        <button class="close-btn" @click="closeImagePreview">×</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -86,6 +113,7 @@ type SiteCard = {
   description?: string;
   availableSites: number;
   totalSites: number;
+  imageUrl?: string;
 };
 
 type EquipCard = {
@@ -231,6 +259,15 @@ const equipments = ref<EquipCard[]>([]);
 const loadingTypes = ref(true);
 const loadingEquipments = ref(true);
 const selectedDate = ref<string>(new Date().toISOString().slice(0, 10));
+const previewImage = ref<string | null>(null);
+
+const showImagePreview = (url: string) => {
+  if (url) previewImage.value = url;
+};
+
+const closeImagePreview = () => {
+  previewImage.value = null;
+};
 
 const normalizeSiteType = (
   raw: Partial<SiteType> & Record<string, any>
@@ -262,6 +299,7 @@ const normalizeSiteType = (
     description: raw.description ?? raw.remark ?? "",
     availableSites: available,
     totalSites: total || available,
+    imageUrl: raw.imageUrl ?? raw.image_url ?? "",
   };
 };
 
@@ -499,6 +537,49 @@ onMounted(() => {
   margin: 6px 0 0;
   color: #4b5563;
   font-size: 13px;
+}
+
+/* 图片预览弹窗 */
+.image-modal {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.image-modal-content img {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.image-modal-content .close-btn {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.image-modal-content .close-btn:hover {
+  color: #ddd;
 }
 
 .loading,

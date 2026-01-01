@@ -97,6 +97,13 @@
       <section class="actions">
         <button
           v-if="booking.status === 0"
+          class="btn-pay"
+          @click="payBooking"
+        >
+          立即支付
+        </button>
+        <button
+          v-if="booking.status === 0"
           class="btn-cancel"
           @click="cancelBooking"
         >
@@ -181,6 +188,19 @@ const cancelBooking = async () => {
     router.push("/site-list");
   } catch (error: any) {
     alert("取消失败: " + (error?.message || "未知错误"));
+  }
+};
+
+const payBooking = async () => {
+  if (!booking.value || !confirm("确定要支付此订单吗？")) return;
+
+  try {
+    await bookingApi.pay(booking.value.bookingId);
+    alert("支付成功！");
+    // 重新加载详情以更新状态
+    loadBookingDetail();
+  } catch (error: any) {
+    alert("支付失败: " + (error?.message || "未知错误"));
   }
 };
 
@@ -423,8 +443,22 @@ onMounted(() => {
 }
 
 .btn-cancel {
-  background: #f56c6c;
+  background: #fff;
+  color: #f56c6c;
+  border: 1px solid #f56c6c;
+}
+
+.btn-cancel:hover {
+  background: #fef0f0;
+}
+
+.btn-pay {
+  background: #67c23a;
   color: #fff;
+}
+
+.btn-pay:hover {
+  background: #85ce61;
 }
 
 .btn-cancel:hover {

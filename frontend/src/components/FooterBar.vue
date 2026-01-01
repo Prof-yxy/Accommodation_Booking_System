@@ -1,6 +1,6 @@
 <template>
   <footer class="footer-bar">
-    <div>© 教学演示 - 仅作数据库操作展示</div>
+    <div>© Copyright 吴逢昊 杨欣烨</div>
   </footer>
 </template>
 

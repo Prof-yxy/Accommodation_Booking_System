@@ -5,6 +5,7 @@
     <resultMap id="BookingResultMap" type="com.camping.entity.Booking">
         <id column="booking_id" property="bookingId" javaType="java.lang.Long"/>
         <result column="user_id" property="userId" javaType="java.lang.Long"/>
+        <result column="username" property="userName" javaType="java.lang.String"/>
         <result column="site_id" property="siteId" javaType="java.lang.Long"/>
         <result column="site_no" property="siteNo" javaType="java.lang.String"/>
         <result column="type_id" property="typeId" javaType="java.lang.Long"/>
@@ -94,14 +95,15 @@
 
     <select id="selectAll" resultMap="BookingResultMap">
          SELECT b.booking_id, b.user_id, b.site_id, b.type_id, b.check_in, b.check_out, b.guest_name, b.guest_phone,
-             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name,
+             b.total_price, b.status, b.create_time, b.update_time, s.site_no, st.type_name, u.username,
              COALESCE(string_agg(e.equip_name || 'x' || be.quantity, ', '), '') AS equipments
          FROM bookings b
          LEFT JOIN sites s ON b.site_id = s.site_id
          LEFT JOIN site_types st ON b.type_id = st.type_id
+         LEFT JOIN users u ON b.user_id = u.user_id
          LEFT JOIN booking_equips be ON b.booking_id = be.booking_id
          LEFT JOIN equipments e ON be.equip_id = e.equip_id
-         GROUP BY b.booking_id, s.site_no, st.type_name
+         GROUP BY b.booking_id, s.site_no, st.type_name, u.username
          ORDER BY b.create_time DESC
     </select>
 

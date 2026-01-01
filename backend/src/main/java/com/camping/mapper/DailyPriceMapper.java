@@ -37,6 +37,11 @@ public interface DailyPriceMapper {
          */
         void delete(Long priceId);
 
+        /**
+         * 按房型删除价格
+         */
+        void deleteByTypeId(Long typeId);
+
         /** 清空所有日价格 */
         void deleteAll();
 }

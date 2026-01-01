@@ -1,6 +1,6 @@
 <template>
   <div class="admin-dashboard">
-    <h2>管理员面板（演示）</h2>
+    <h2>管理员面板</h2>
 
     <div class="cards">
       <div class="card">
@@ -22,12 +22,17 @@
 
       <div class="card">
         <h3>简要报表 (示例)</h3>
+        <div class="date-range-picker">
+          <input type="date" v-model="reportStartDate" />
+          <span>至</span>
+          <input type="date" v-model="reportEndDate" />
+          <button class="btn" @click="loadReport">更新</button>
+        </div>
         <div v-if="loadingReport">加载中...</div>
         <div v-else>
-          <div>
-            期间: {{ report.startDate || "-" }} ~ {{ report.endDate || "-" }}
-          </div>
-          <div>总收入: {{ report.totalRevenue || 0 }}</div>
+          <div>总收入: {{ report.totalRevenue.toFixed(2) || 0 }}</div>
+          <div>总订单数: {{ report.totalBookings || 0 }}</div>
+          <div>日均收入: {{ report.averageDailyRevenue.toFixed(2) || 0 }}</div>
         </div>
       </div>
 
@@ -78,6 +83,7 @@
           <thead>
             <tr>
               <th>ID</th>
+              <th>用户</th>
               <th>房型</th>
               <th>营位号</th>
               <th>日期</th>
@@ -92,6 +98,7 @@
           <tbody>
             <tr v-for="b in filteredBookings" :key="b.bookingId">
               <td>{{ b.bookingId }}</td>
+              <td>{{ b.userName || b.userId }}</td>
               <td>{{ b.typeName || "-" }}</td>
               <td>{{ b.siteNo || "-" }}</td>
               <td>{{ b.checkIn }} ~ {{ b.checkOut }}</td>
@@ -124,21 +131,36 @@
 
       <!-- 新增房型表单 -->
       <div class="form-grid">
-        <input v-model="newType.typeName" placeholder="房型名称" />
-        <input
-          v-model.number="newType.basePrice"
-          type="number"
-          min="0"
-          placeholder="基础价"
-        />
-        <input
-          v-model.number="newType.maxGuests"
-          type="number"
-          min="1"
-          placeholder="可住人数"
-        />
-        <input v-model="newType.imageUrl" placeholder="图片地址(可选)" />
-        <input v-model="newType.description" placeholder="描述(可选)" />
+        <div class="form-item">
+          <span class="label">房型名称</span>
+          <input v-model="newType.typeName" placeholder="房型名称" />
+        </div>
+        <div class="form-item">
+          <span class="label">基础价</span>
+          <input
+            v-model.number="newType.basePrice"
+            type="number"
+            min="0"
+            placeholder="基础价"
+          />
+        </div>
+        <div class="form-item">
+          <span class="label">可住人数</span>
+          <input
+            v-model.number="newType.maxGuests"
+            type="number"
+            min="1"
+            placeholder="可住人数"
+          />
+        </div>
+        <div class="form-item">
+          <span class="label">图片地址</span>
+          <input v-model="newType.imageUrl" placeholder="图片地址(可选)" />
+        </div>
+        <div class="form-item">
+          <span class="label">描述</span>
+          <input v-model="newType.description" placeholder="描述(可选)" />
+        </div>
         <button class="btn" @click="createSiteType">新增房型</button>
       </div>
 
@@ -151,6 +173,9 @@
               <th>名称</th>
               <th>基础价</th>
               <th>可住人数</th>
+              <th>总数</th>
+              <th>图片</th>
+              <th>描述</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -174,6 +199,13 @@
                   />
                 </td>
                 <td>
+                  <button class="btn" @click="openSiteManager(t)">
+                    管理营位
+                  </button>
+                </td>
+                <td><input v-model="editType.imageUrl" /></td>
+                <td><input v-model="editType.description" /></td>
+                <td>
                   <button class="btn" @click="saveEditType">保存</button>
                   <button class="btn btn-ghost" @click="cancelEditType">
                     取消
@@ -184,6 +216,23 @@
                 <td>{{ t.typeName }}</td>
                 <td>￥{{ formatPrice(t.basePrice) }}</td>
                 <td>{{ t.maxGuests }}</td>
+                <td>{{ t.totalSites || "-" }}</td>
+                <td>
+                  <img
+                    v-if="t.imageUrl"
+                    :src="t.imageUrl"
+                    alt="img"
+                    style="
+                      width: 50px;
+                      height: 50px;
+                      object-fit: cover;
+                      cursor: pointer;
+                    "
+                    @click="showImagePreview(t.imageUrl)"
+                  />
+                  <span v-else>-</span>
+                </td>
+                <td>{{ t.description || "-" }}</td>
                 <td>
                   <button class="btn" @click="startEditType(t)">编辑</button>
                   <button
@@ -209,21 +258,36 @@
 
       <!-- 新增装备表单 -->
       <div class="form-grid">
-        <input v-model="newEquip.equipName" placeholder="装备名称" />
-        <input
-          v-model.number="newEquip.unitPrice"
-          type="number"
-          min="0"
-          placeholder="单价"
-        />
-        <input
-          v-model.number="newEquip.totalStock"
-          type="number"
-          min="0"
-          placeholder="总库存"
-        />
-        <input v-model="newEquip.category" placeholder="分类(可选)" />
-        <input v-model="newEquip.description" placeholder="描述(可选)" />
+        <div class="form-item">
+          <span class="label">装备名称</span>
+          <input v-model="newEquip.equipName" placeholder="装备名称" />
+        </div>
+        <div class="form-item">
+          <span class="label">单价</span>
+          <input
+            v-model.number="newEquip.unitPrice"
+            type="number"
+            min="0"
+            placeholder="单价"
+          />
+        </div>
+        <div class="form-item">
+          <span class="label">总库存</span>
+          <input
+            v-model.number="newEquip.totalStock"
+            type="number"
+            min="0"
+            placeholder="总库存"
+          />
+        </div>
+        <div class="form-item">
+          <span class="label">分类</span>
+          <input v-model="newEquip.category" placeholder="分类(可选)" />
+        </div>
+        <div class="form-item">
+          <span class="label">描述</span>
+          <input v-model="newEquip.description" placeholder="描述(可选)" />
+        </div>
         <button class="btn" @click="createEquipment">新增装备</button>
       </div>
 
@@ -237,6 +301,7 @@
               <th>单价</th>
               <th>总库存</th>
               <th>分类</th>
+              <th>描述</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -260,6 +325,7 @@
                   />
                 </td>
                 <td><input v-model="editEquip.category" /></td>
+                <td><input v-model="editEquip.description" /></td>
                 <td>
                   <button class="btn" @click="saveEditEquip">保存</button>
                   <button class="btn btn-ghost" @click="cancelEditEquip">
@@ -272,6 +338,7 @@
                 <td>￥{{ formatPrice(e.unitPrice) }}</td>
                 <td>{{ e.totalStock ?? "-" }}</td>
                 <td>{{ e.category || "-" }}</td>
+                <td>{{ e.description || "-" }}</td>
                 <td>
                   <button class="btn" @click="startEditEquip(e)">编辑</button>
                   <button
@@ -290,6 +357,57 @@
         </table>
       </div>
     </section>
+
+    <!-- 营位管理弹窗 -->
+    <div v-if="showSiteManager" class="modal-mask">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>管理营位 (房型ID: {{ currentManageTypeId }})</h3>
+          <button class="btn-close" @click="closeSiteManager">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="site-form">
+            <input v-model="newSiteNo" placeholder="输入新营位编号" />
+            <button class="btn" @click="addSite">添加营位</button>
+          </div>
+          <div class="site-list-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>编号</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in siteList" :key="s.siteId">
+                  <td>{{ s.siteId }}</td>
+                  <td>{{ s.siteNo }}</td>
+                  <td>{{ getSiteStatusText(s.status) }}</td>
+                  <td>
+                    <button class="btn btn-danger" @click="removeSite(s.siteId)">
+                      删除
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!siteList.length">
+                  <td colspan="4" class="empty">暂无营位数据</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图片预览弹窗 -->
+    <div v-if="previewImage" class="image-modal" @click="closeImagePreview">
+      <div class="image-modal-content" @click.stop>
+        <img :src="previewImage" alt="Preview" />
+        <button class="close-btn" @click="closeImagePreview">×</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -302,6 +420,13 @@ const stats = ref<any>({});
 const report = ref<any>({});
 const loadingStats = ref(true);
 const loadingReport = ref(true);
+
+// 报表日期范围
+const today = new Date();
+const start = new Date(today.getTime() - 7 * 24 * 3600 * 1000);
+const fmt = (d: Date) => d.toISOString().slice(0, 10);
+const reportStartDate = ref(fmt(start));
+const reportEndDate = ref(fmt(today));
 
 // 全部订单
 const bookings = ref<any[]>([]);
@@ -341,6 +466,23 @@ const editingTypeId = ref<number | null>(null);
 const editType = ref<any>({});
 const editingEquipId = ref<number | null>(null);
 const editEquip = ref<any>({});
+
+// 房屋管理
+const showSiteManager = ref(false);
+const currentManageTypeId = ref<number | null>(null);
+const siteList = ref<any[]>([]);
+const newSiteNo = ref("");
+
+// 图片预览
+const previewImage = ref<string | null>(null);
+
+function showImagePreview(url: string) {
+  if (url) previewImage.value = url;
+}
+
+function closeImagePreview() {
+  previewImage.value = null;
+}
 
 onMounted(async () => {
   await Promise.all([loadStats(), loadReport()]);
@@ -383,11 +525,26 @@ async function loadStats() {
 async function loadReport() {
   loadingReport.value = true;
   try {
-    const today = new Date();
-    const start = new Date(today.getTime() - 7 * 24 * 3600 * 1000);
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const r: any = await adminApi.getDailyReport(fmt(start), fmt(today));
-    report.value = (r && r.data) || {};
+    const r: any = await adminApi.getDailyReport(
+      reportStartDate.value,
+      reportEndDate.value
+    );
+    
+    const list = r.data || [];
+    let totalRevenue = 0;
+    let totalBookings = 0;
+
+    for (const d of list) {
+      totalRevenue += Number(d.revenue || 0);
+      totalBookings += Number(d.bookingCount || 0);
+    }
+
+    report.value = {
+      totalRevenue,
+      totalBookings,
+      averageDailyRevenue: list.length > 0 ? totalRevenue / list.length : 0
+    };
+    
   } catch (e) {
     report.value = {};
   } finally {
@@ -438,6 +595,8 @@ async function loadEquipments() {
   try {
     const res: any = await resourceApi.getEquipments();
     equipments.value = res?.data || [];
+    // Sort by ID ascending
+    equipments.value.sort((a, b) => (a.equipId || 0) - (b.equipId || 0));
   } catch {
     equipments.value = [];
   } finally {
@@ -471,6 +630,7 @@ function startEditType(t: SiteType) {
     typeName: t.typeName,
     basePrice: t.basePrice,
     maxGuests: t.maxGuests,
+    totalSites: t.totalSites,
     description: (t as any).description || "",
     imageUrl: (t as any).imageUrl || "",
   };
@@ -487,6 +647,7 @@ async function saveEditType() {
     typeName: editType.value.typeName,
     basePrice: Number(editType.value.basePrice) || 0,
     maxGuests: Number(editType.value.maxGuests) || 1,
+    totalSites: Number(editType.value.totalSites) || 0,
     description: editType.value.description || "",
     imageUrl: editType.value.imageUrl || "",
   });
@@ -495,9 +656,23 @@ async function saveEditType() {
 }
 
 async function deleteSiteType(typeId: number) {
-  if (!confirm("确认删除该房型？")) return;
-  await adminApi.deleteSiteType(typeId);
-  await loadTypes();
+  if (!confirm("确认删除该房型？这将同时删除该房型下的所有营位！")) return;
+  try {
+    // 1. 获取该房型下的所有营位
+    const res: any = await adminApi.getAllSites(typeId);
+    const sites = res?.data || [];
+
+    // 2. 逐个删除营位
+    for (const site of sites) {
+      await adminApi.deleteSite(site.siteId);
+    }
+
+    // 3. 删除房型
+    await adminApi.deleteSiteType(typeId);
+    await loadTypes();
+  } catch (e: any) {
+    alert("删除失败: " + (e?.message || "未知错误"));
+  }
 }
 
 // ---------- 装备增删改 ----------
@@ -568,6 +743,59 @@ function getStatusText(status: number) {
   };
   return map[status] || "-";
 }
+
+// ---------- 房屋管理逻辑 ----------
+async function openSiteManager(t: SiteType) {
+  currentManageTypeId.value = t.typeId;
+  showSiteManager.value = true;
+  await loadSites(t.typeId);
+}
+
+function closeSiteManager() {
+  showSiteManager.value = false;
+  currentManageTypeId.value = null;
+  siteList.value = [];
+  newSiteNo.value = "";
+}
+
+async function loadSites(typeId: number) {
+  try {
+    const res: any = await adminApi.getAllSites(typeId);
+    siteList.value = res?.data || [];
+  } catch (e) {
+    siteList.value = [];
+  }
+}
+
+async function addSite() {
+  if (!currentManageTypeId.value || !newSiteNo.value) return;
+  try {
+    await adminApi.createSite(currentManageTypeId.value, newSiteNo.value);
+    newSiteNo.value = "";
+    await loadSites(currentManageTypeId.value);
+    // 刷新房型列表以更新总数
+    await loadTypes();
+  } catch (e: any) {
+    alert("添加失败: " + (e?.message || "未知错误"));
+  }
+}
+
+async function removeSite(siteId: number) {
+  if (!confirm("确认删除该营位？")) return;
+  if (!currentManageTypeId.value) return;
+  try {
+    await adminApi.deleteSite(siteId);
+    await loadSites(currentManageTypeId.value);
+    // 刷新房型列表以更新总数
+    await loadTypes();
+  } catch (e: any) {
+    alert("删除失败: " + (e?.message || "未知错误"));
+  }
+}
+
+function getSiteStatusText(status: number) {
+  return status === 1 ? "正常" : "维护中";
+}
 </script>
 
 <style scoped>
@@ -600,11 +828,28 @@ function getStatusText(status: number) {
   min-width: 200px;
 }
 .form-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-  gap: 8px;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
   margin-bottom: 12px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-item .label {
+  font-size: 12px;
+  color: #666;
+}
+
+.form-item input {
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .table-wrap {
   overflow-x: auto;
@@ -655,5 +900,123 @@ function getStatusText(status: number) {
 .empty {
   text-align: center;
   color: #888;
+}
+
+/* 模态框样式 */
+.modal-mask {
+  position: fixed;
+  z-index: 9998;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-container {
+  width: 600px;
+  max-width: 90%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.33);
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.modal-header {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.site-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.site-list-container {
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+
+.date-range-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.date-range-picker input {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* 图片预览弹窗 */
+.image-modal {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.image-modal-content img {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.image-modal-content .close-btn {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.image-modal-content .close-btn:hover {
+  color: #ddd;
 }
 </style>

@@ -68,6 +68,7 @@ export interface SiteTypeEdit {
   typeName: string
   basePrice: number
   maxGuests: number
+  totalSites?: number
   description?: string
   imageUrl?: string
 }
@@ -215,6 +216,23 @@ export const adminApi = {
       params.typeId = typeId
     }
     return request.get('/admin/sites', { params })
+  },
+
+  /**
+   * 新增营位
+   * @param typeId 房型ID
+   * @param siteNo 营位编号
+   */
+  createSite: (typeId: number, siteNo: string) => {
+    return request.post('/admin/site', { typeId, siteNo })
+  },
+
+  /**
+   * 删除营位
+   * @param siteId 营位ID
+   */
+  deleteSite: (siteId: number) => {
+    return request.delete(`/admin/site/${siteId}`)
   },
 
   /**

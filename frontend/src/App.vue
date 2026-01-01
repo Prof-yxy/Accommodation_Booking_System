@@ -3,20 +3,6 @@
     <HeaderBar />
 
     <main class="app-main">
-      <section>
-        <p>
-          这是一个数据库课程设计的前端演示壳。使用项目自带的路由（如已配置）可访问各视图。
-        </p>
-        <p>
-          如果未配置路由，请直接打开对应视图文件查看或在路由中注册这些组件：
-        </p>
-        <ul>
-          <li>`/src/views/SiteList.vue`</li>
-          <li>`/src/views/BookingConfirm.vue`</li>
-          <li>`/src/views/AdminDashboard.vue`</li>
-        </ul>
-      </section>
-
       <section class="demo-area">
         <!-- 如果已安装并配置路由，router-view 会渲染具体页面 -->
         <router-view v-if="$router" />

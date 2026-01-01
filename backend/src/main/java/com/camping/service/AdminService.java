@@ -41,6 +41,16 @@ public interface AdminService {
     Map<String, Object> getOperationLogs(Integer page, Integer pageSize, String operation) throws Exception;
 
     /**
+     * 创建营位
+     */
+    Map<String, Object> createSite(Long typeId, String siteNo) throws Exception;
+
+    /**
+     * 删除营位
+     */
+    void deleteSite(Long siteId) throws Exception;
+
+    /**
      * 更新营位状态
      */
     void updateSiteStatus(Long siteId, Integer status) throws Exception;

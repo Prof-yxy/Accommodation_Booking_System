@@ -61,13 +61,23 @@ public class AdminController {
 
             LocalDateTime now = LocalDateTime.now();
 
-            // 默认房型
+            // 默认房型 (Data from data.sql)
             List<SiteType> defaults = List.of(
-                    buildSiteType("湖景標准營位", new BigDecimal("320"), 4, now),
-                    buildSiteType("森林豪華營位", new BigDecimal("380"), 4, now),
-                    buildSiteType("星空A字小屋", new BigDecimal("560"), 3, now),
-                    buildSiteType("全套接駁房車位", new BigDecimal("620"), 4, now),
-                    buildSiteType("輕奢鈴鐺帳", new BigDecimal("480"), 3, now));
+                    buildSiteType("湖景標准營位", new BigDecimal("120.00"), 4, "臨湖草地，含電桩與野餐桌",
+                            "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
+                            now),
+                    buildSiteType("森林豪華營位", new BigDecimal("220.00"), 6, "寬闊樹蔭，含私密遮陽與吊床",
+                            "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80",
+                            now),
+                    buildSiteType("星空A字小屋", new BigDecimal("320.00"), 4, "硬頂小屋，配備空調與獨立衛浴",
+                            "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80",
+                            now),
+                    buildSiteType("全套接駁房車位", new BigDecimal("180.00"), 8, "車位自帶上下水與30A電源",
+                            "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80",
+                            now),
+                    buildSiteType("輕奢鈴鐺帳", new BigDecimal("260.00"), 4, "木平台 + 大空間棉布帳，含氛圍燈",
+                            "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
+                            now));
 
             Map<String, Long> typeIdMap = new LinkedHashMap<>();
             int siteCount = 0;
@@ -76,11 +86,11 @@ public class AdminController {
                 siteTypeMapper.insert(type);
                 typeIdMap.put(type.getTypeName(), type.getTypeId());
 
-                // 为每个房型生成 5 个营位
-                for (int j = 1; j <= 5; j++) {
+                // 为每个房型生成 10 个营位
+                for (int j = 1; j <= 10; j++) {
                     Site site = new Site();
                     site.setTypeId(type.getTypeId());
-                    site.setSiteNo(String.format("%02d-%03d", (i + 1), j));
+                    site.setSiteNo("Site-" + type.getTypeId() + "-" + j);
                     site.setStatus(1);
                     site.setCreateTime(now);
                     site.setUpdateTime(now);
@@ -89,16 +99,16 @@ public class AdminController {
                 }
             }
 
-            // 默认装备
+            // 默认装备 (Data from data.sql)
             List<Equipment> equipments = List.of(
-                    buildEquip("便攜保溫冰箱", new BigDecimal("80"), 15, now),
-                    buildEquip("鈦合金炊煮套裝", new BigDecimal("60"), 20, now),
-                    buildEquip("雙口瓦斯爐", new BigDecimal("90"), 12, now),
-                    buildEquip("戶外咖啡組", new BigDecimal("50"), 18, now),
-                    buildEquip("羽絨睡袋", new BigDecimal("55"), 30, now),
-                    buildEquip("自充氣防潮墊", new BigDecimal("40"), 30, now),
-                    buildEquip("可折疊桌椅組", new BigDecimal("45"), 25, now),
-                    buildEquip("LED氛圍燈串", new BigDecimal("25"), 40, now));
+                    buildEquip("羽絨睡袋", new BigDecimal("28.00"), 120, "睡眠", "舒適溫標5C，可壓縮", now),
+                    buildEquip("自充氣防潮墊", new BigDecimal("16.00"), 160, "睡眠", "5cm 厚度，R值 3.5", now),
+                    buildEquip("鈦合金炊煮套裝", new BigDecimal("45.00"), 90, "烹飪", "含鍋碗與酒精爐架", now),
+                    buildEquip("雙口瓦斯爐", new BigDecimal("55.00"), 70, "烹飪", "含兩罐230g氣罐", now),
+                    buildEquip("可折疊桌椅組", new BigDecimal("32.00"), 140, "營地", "四人桌 + 四折疊椅", now),
+                    buildEquip("LED氛圍燈串", new BigDecimal("12.00"), 180, "照明", "USB 供電，10m 長", now),
+                    buildEquip("便攜保溫冰箱", new BigDecimal("48.00"), 80, "存儲", "42L，附車載電源線", now),
+                    buildEquip("戶外咖啡組", new BigDecimal("26.00"), 110, "烹飪", "手沖壺 + 濾杯 + 豆", now));
 
             equipments.forEach(equipmentMapper::insert);
 
@@ -192,7 +202,7 @@ public class AdminController {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 1) {
+                    if (booking.getStatus() == 1 || booking.getStatus() == 2) {
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
                         if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
@@ -236,7 +246,7 @@ public class AdminController {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 1 && type.getTypeId().equals(booking.getTypeId())) {
+                    if ((booking.getStatus() == 1 || booking.getStatus() == 2) && type.getTypeId().equals(booking.getTypeId())) {
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         if (!checkIn.isBefore(start) && !checkIn.isAfter(end)) {
                             bookingCount++;
@@ -273,12 +283,12 @@ public class AdminController {
             BigDecimal totalRevenue = BigDecimal.ZERO;
 
             for (Booking booking : allBookings) {
-                if (booking.getStatus() == 0) {
+                if (booking.getStatus() == 0)
                     pendingBookings++;
-                } else if (booking.getStatus() == 1) {
+                else if (booking.getStatus() == 1 || booking.getStatus() == 2) {
                     paidBookings++;
                     totalRevenue = totalRevenue.add(booking.getTotalPrice());
-                } else if (booking.getStatus() == 2) {
+                } else if (booking.getStatus() == 3) {
                     cancelledBookings++;
                 }
             }
@@ -375,6 +385,93 @@ public class AdminController {
             return Result.success(result);
         } catch (Exception e) {
             return Result.error("Failed to get operation logs: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create site
+     */
+    @PostMapping("/site")
+    public Result<Object> createSite(@RequestBody Map<String, Object> data) {
+        try {
+            Object typeIdObj = data.get("typeId");
+            Object siteNoObj = data.get("siteNo");
+
+            if (typeIdObj == null || siteNoObj == null) {
+                return Result.error("Missing required parameters");
+            }
+
+            Long typeId = ((Number) typeIdObj).longValue();
+            String siteNo = (String) siteNoObj;
+
+            if (siteNo.trim().isEmpty()) {
+                return Result.error("Site number cannot be empty");
+            }
+
+            SiteType type = siteTypeMapper.selectById(typeId);
+            if (type == null) {
+                return Result.error("Site type not found");
+            }
+
+            Site existing = siteMapper.selectByTypeAndNo(typeId, siteNo);
+            if (existing != null) {
+                return Result.error("Site number already exists for this type");
+            }
+
+            Site site = new Site();
+            site.setTypeId(typeId);
+            site.setSiteNo(siteNo);
+            site.setStatus(1); // Default normal
+            site.setCreateTime(LocalDateTime.now());
+            site.setUpdateTime(LocalDateTime.now());
+            siteMapper.insert(site);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "CREATE_SITE",
+                    null,
+                    "ADMIN",
+                    "Create site: " + siteNo + " for type: " + type.getTypeName(),
+                    "siteId=" + site.getSiteId() + ", typeId=" + typeId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("siteId", site.getSiteId());
+            result.put("typeId", site.getTypeId());
+            result.put("siteNo", site.getSiteNo());
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.error("Failed to create site: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete site
+     */
+    @DeleteMapping("/site/{siteId}")
+    public Result<Void> deleteSite(@PathVariable Long siteId) {
+        try {
+            Site site = siteMapper.selectById(siteId);
+            if (site == null) {
+                return Result.error("Site not found");
+            }
+
+            siteMapper.delete(siteId);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "DELETE_SITE",
+                    null,
+                    "ADMIN",
+                    "Delete site: " + site.getSiteNo(),
+                    "siteId=" + siteId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error("Failed to delete site: " + e.getMessage());
         }
     }
 
@@ -717,6 +814,9 @@ public class AdminController {
                 return Result.error("Cannot delete site type with existing sites");
             }
 
+            // Delete associated daily prices first
+            dailyPriceMapper.deleteByTypeId(typeId);
+
             siteTypeMapper.delete(typeId);
 
             // Log operation
@@ -834,26 +934,28 @@ public class AdminController {
 
     // ========== Helper builders ==========
 
-    private SiteType buildSiteType(String name, BigDecimal basePrice, int maxGuests, LocalDateTime now) {
+    private SiteType buildSiteType(String name, BigDecimal basePrice, int maxGuests, String description,
+            String imageUrl, LocalDateTime now) {
         SiteType st = new SiteType();
         st.setTypeName(name);
         st.setBasePrice(basePrice);
         st.setMaxGuests(maxGuests);
         st.setStatus(1);
-        st.setDescription("");
-        st.setImageUrl("");
+        st.setDescription(description);
+        st.setImageUrl(imageUrl);
         st.setCreateTime(now);
         st.setUpdateTime(now);
         return st;
     }
 
-    private Equipment buildEquip(String name, BigDecimal price, int stock, LocalDateTime now) {
+    private Equipment buildEquip(String name, BigDecimal price, int stock, String category, String description,
+            LocalDateTime now) {
         Equipment e = new Equipment();
         e.setEquipName(name);
         e.setUnitPrice(price);
         e.setTotalStock(stock);
-        e.setCategory("通用");
-        e.setDescription("");
+        e.setCategory(category);
+        e.setDescription(description);
         e.setStatus(1);
         e.setCreateTime(now);
         e.setUpdateTime(now);

@@ -91,7 +91,7 @@ public class AdminServiceImpl implements AdminService {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 2) {
+                    if (booking.getStatus() == 1 || booking.getStatus() == 2) { // 1: Paid, 2: Completed
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         LocalDate checkOut = LocalDate.parse(booking.getCheckOut());
                         if (!date.isBefore(checkIn) && date.isBefore(checkOut)) {
@@ -157,7 +157,7 @@ public class AdminServiceImpl implements AdminService {
                 BigDecimal revenue = BigDecimal.ZERO;
 
                 for (Booking booking : allBookings) {
-                    if (booking.getStatus() == 2 && type.getTypeId().equals(booking.getTypeId())) {
+                    if ((booking.getStatus() == 1 || booking.getStatus() == 2) && type.getTypeId().equals(booking.getTypeId())) { // 1: Paid, 2: Completed
                         LocalDate checkIn = LocalDate.parse(booking.getCheckIn());
                         if (!checkIn.isBefore(start) && !checkIn.isAfter(end)) {
                             bookingCount++;
@@ -198,9 +198,9 @@ public class AdminServiceImpl implements AdminService {
             BigDecimal totalRevenue = BigDecimal.ZERO;
 
             for (Booking booking : allBookings) {
-                if (booking.getStatus() == 1)
+                if (booking.getStatus() == 0)
                     pendingBookings++;
-                else if (booking.getStatus() == 2) {
+                else if (booking.getStatus() == 1 || booking.getStatus() == 2) {
                     paidBookings++;
                     totalRevenue = totalRevenue.add(booking.getTotalPrice());
                 } else if (booking.getStatus() == 3)
@@ -309,6 +309,87 @@ public class AdminServiceImpl implements AdminService {
 
         } catch (Exception e) {
             throw new Exception("Failed to get operation logs: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create site
+     */
+    @Override
+    public Map<String, Object> createSite(Long typeId, String siteNo) throws Exception {
+        if (typeId == null || siteNo == null || siteNo.trim().isEmpty()) {
+            throw new Exception("Missing required parameters");
+        }
+
+        try {
+            SiteType type = siteTypeMapper.selectById(typeId);
+            if (type == null) {
+                throw new Exception("Site type not found");
+            }
+
+            Site existing = siteMapper.selectByTypeAndNo(typeId, siteNo);
+            if (existing != null) {
+                throw new Exception("Site number already exists for this type");
+            }
+
+            Site site = new Site();
+            site.setTypeId(typeId);
+            site.setSiteNo(siteNo);
+            site.setStatus(1); // Default normal
+            site.setCreateTime(LocalDateTime.now());
+            site.setUpdateTime(LocalDateTime.now());
+            siteMapper.insert(site);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "CREATE_SITE",
+                    null,
+                    "ADMIN",
+                    "Create site: " + siteNo + " for type: " + type.getTypeName(),
+                    "siteId=" + site.getSiteId() + ", typeId=" + typeId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("siteId", site.getSiteId());
+            result.put("typeId", site.getTypeId());
+            result.put("siteNo", site.getSiteNo());
+            return result;
+
+        } catch (Exception e) {
+            throw new Exception("Failed to create site: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete site
+     */
+    @Override
+    public void deleteSite(Long siteId) throws Exception {
+        if (siteId == null) {
+            throw new Exception("Missing site ID");
+        }
+
+        try {
+            Site site = siteMapper.selectById(siteId);
+            if (site == null) {
+                throw new Exception("Site not found");
+            }
+
+            siteMapper.delete(siteId);
+
+            // Log operation
+            OperationLog log = new OperationLog(
+                    "DELETE_SITE",
+                    null,
+                    "ADMIN",
+                    "Delete site: " + site.getSiteNo(),
+                    "siteId=" + siteId,
+                    LocalDateTime.now());
+            operationLogMapper.insert(log);
+
+        } catch (Exception e) {
+            throw new Exception("Failed to delete site: " + e.getMessage());
         }
     }
 

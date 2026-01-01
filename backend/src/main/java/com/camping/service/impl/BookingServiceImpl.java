@@ -407,7 +407,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelBooking(Long bookingId) throws Exception {
-        finalizeBooking(bookingId, 2);
+        finalizeBooking(bookingId, 3);
     }
 
     @Override
