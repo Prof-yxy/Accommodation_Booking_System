@@ -144,43 +144,6 @@ function Install-PostgreSQL {
     }
 }
 
-function Initialize-Database {
-    param([string]$DbPassword = "postgres")
-    
-    if (-not (Test-Command "psql")) {
-        Write-Status "PostgreSQL not found. Please install it first." "Error"
-        return $false
-    }
-    
-    Write-Status "Initializing database..." "Info"
-    
-    try {
-        # Note: This requires PostgreSQL to be running and accessible
-        $env:PGPASSWORD = $DbPassword
-        
-        $sqlFiles = @(
-            "sql\schema.sql",
-            "sql\views_triggers.sql",
-            "sql\data.sql"
-        )
-        
-        foreach ($file in $sqlFiles) {
-            if (Test-Path $file) {
-                Write-Host "  Processing: $file" -ForegroundColor Gray
-                psql -h localhost -U postgres -f $file | Out-Null
-            } else {
-                Write-Status "File not found: $file" "Warning"
-            }
-        }
-        
-        Write-Status "Database initialized successfully" "Success"
-        return $true
-    } catch {
-        Write-Status "Database initialization failed: $_" "Error"
-        return $false
-    }
-}
-
 # ===== Main Execution =====
 
 Write-Section "Camping Booking System - Windows Environment Setup"
@@ -263,10 +226,10 @@ Write-Host "All required tools are installed!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "1. Close and reopen your PowerShell/Terminal" -ForegroundColor White
-Write-Host "2. Run: .\start.bat" -ForegroundColor Cyan
+Write-Host "2. Run: .\setup-full-fix.ps1" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "For detailed configuration information, see:" -ForegroundColor Yellow
-Write-Host "  ENVIRONMENT_SETUP.md" -ForegroundColor Cyan
+Write-Host "  README.md" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Press any key to continue..." -ForegroundColor Yellow

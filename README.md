@@ -1,15 +1,13 @@
 # Accommodation Booking System
 
-露营住宿预订系统（开发中）
+露营住宿预订系统
 
 ## 一、 项目总体架构与目录结构
-
-建议采用 **Monorepo**（单体仓库）结构管理的两个独立工程，或者两个完全分开的仓库。
 
 ```text
 camping-system/
 ├── sql/                        # 数据库脚本
-│   ├── schema.sql              # 建表语句 (含索引)
+│   ├── schema_utf8.sql         # 建表语句 (含索引)
 │   ├── views_triggers.sql      # 视图与触发器 (View & Trigger)
 │   └── data.sql                # 初始化测试数据 (Mock Data)
 ├── backend/                    # 后端工程 (Spring Boot + Maven/Gradle)
@@ -25,9 +23,9 @@ camping-system/
 │   │   ├── dto/                # 数据传输对象 (接收前端参数)
 │   │   ├── entity/             # 数据库实体类 (对应 UserTable 等)
 │   │   ├── mapper/             # 持久层接口 (MyBatis Mapper / JPA Repository)
-│   │   └── service/            # 业务逻辑层 (事务控制 @Transactional 在此)
-│   │       ├── impl/
-│   │       └── BookingService.java
+│   │   ├── util/               # 日期、用户相关的函数
+│   │   └── service/            # 业务逻辑层 (事务控制 @Transactional 在此，除了Admin的业务写在Controller中)
+│   │       └── impl/
 │   └── src/main/resources/
 │       ├── mapper/             # 数据库映射相关
 │       └── application.yml     # 数据库配置
@@ -37,11 +35,13 @@ camping-system/
 │   │   │   ├── user.ts
 │   │   │   ├── resource.ts
 │   │   │   ├── booking.ts
+│   │   │   ├── index.ts
 │   │   │   └── admin.ts
-│   │   ├── assets/             # 静态资源
 │   │   ├── components/         # 公共组件
 │   │   ├── router/             # 路由配置
 │   │   ├── stores/             # 状态管理 (Pinia)
+│   │   ├── types/              # 通用类型
+│   │   ├── utils/              # 辅助函数
 │   │   ├── views/              # 页面视图
 │   │   │   ├── Login.vue
 │   │   │   ├── SiteList.vue
@@ -49,7 +49,8 @@ camping-system/
 │   │   │   └── AdminDashboard.vue
 │   │   ├── App.vue
 │   │   └── main.ts
-│   └── package.json
+│   ├── package.json
+│   └── package-lock.json
 └── README.md
 ```
 
@@ -113,7 +114,6 @@ username	password	  role
 
 ### 建议：
 
-1. 整理项目文件，文档有点多，比较杂乱。一些看上去冗余的文档放在了 other 文件夹，到后面看情况将内容合并进 README.md。保证最后文档最好只留一个 README.md.
-2. 目前只有 windows 的脚本有效，其他系统的脚本可以删除或若有时间可以修正
-3. ./setup-full-fix.ps1 用于配置数据库、后端和前端，可以把这三个部分分开成三个文件，这样在一个部分配置失败后无需从头开始。
-4. ./setup-env-windows.ps1 和./setup-full-fix.ps1 两个部署文件一个是用于环境完整性检查，另一个是进行后端配置部署，但两者有功能重复的部分，可以简化。同时修改名字使其更加贴切他们各自的功能。
+1. 目前只有 windows 的脚本有效，其他系统的脚本可以删除或若有时间可以修正。
+2. ./setup-full-fix.ps1 用于配置数据库、后端和前端，可以把这三个部分分开成三个文件，这样在一个部分配置失败后无需从头开始。
+3. ./setup-env-windows.ps1 和./setup-full-fix.ps1 两个部署文件一个是用于环境完整性检查，另一个是进行后端配置部署，但两者有功能重复的部分，可以简化。同时修改名字使其更加贴切他们各自的功能。

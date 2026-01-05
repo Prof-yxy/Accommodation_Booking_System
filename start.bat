@@ -118,7 +118,7 @@ if %errorlevel% equ 0 (
 REM Check if process is still running by checking port
 netstat -an | findstr ":8080" | findstr "LISTENING" >nul 2>&1
 if %errorlevel% neq 0 (
-    if %count% geq 5 (
+    if %count% geq 10 (
         echo.
         echo [ERROR] Backend failed to start!
         echo Please check the backend window for error messages.

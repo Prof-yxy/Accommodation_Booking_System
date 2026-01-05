@@ -11,7 +11,7 @@
         @change="onDateChange"
       />
       <button class="btn" @click="refreshAll">刷新价格与库存</button>
-      <span class="hint">周末价含1.15系数，日营下单再按0.6折算</span>
+      <span class="hint">周末价含1.15系数，日营下单再按6折算；特定周五当日房价*1.1，特定周末当日房价*1.2</span>
     </section>
 
     <section class="block">
